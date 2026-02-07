@@ -88,13 +88,27 @@ class Scanner {
         if (match('/')) {
           // A comment goes until the end of the line.
           while (peek() != '\n' && !isAtEnd()) advance();
+
+          // support C-style /* ... */ block comments
+        } else if(match('*')) {
+          while (!isAtEnd()) {
+            if (peek() == '\n') line++;
+
+            if (peek() == '*' && peekNext() == '/') {
+              advance();
+              advance();
+              break;
+            }
+
+            advance();
+          }
+
         } else {
           addToken(SLASH);
         }
         break;
 //< slash
 //> whitespace
-
       case ' ':
       case '\r':
       case '\t':
