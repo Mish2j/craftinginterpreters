@@ -46,13 +46,27 @@ class Parser {
     return statements; // [parse-error-handling]
   }
 //< Statements and State parse
+
+private Expr comma() {
+  Expr expr = assignment();
+
+  while (match(COMMA)) {
+    Token operator = previous();
+    Expr right = assignment();
+    expr = new Expr.Binary(expr, operator, right);
+  }
+
+  return expr;
+}
+
+
 //> expression
   private Expr expression() {
 /* Parsing Expressions expression < Statements and State expression
     return equality();
 */
 //> Statements and State expression
-    return assignment();
+    return comma();
 //< Statements and State expression
   }
 //< expression
@@ -420,7 +434,7 @@ class Parser {
           error(peek(), "Can't have more than 255 arguments.");
         }
 //< check-max-arity
-        arguments.add(expression());
+        arguments.add(assignment());
       } while (match(COMMA));
     }
 
