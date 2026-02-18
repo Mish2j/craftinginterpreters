@@ -21,6 +21,12 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   }
 //< Statements and State omit
 //> visit-methods
+
+  @Override
+  public String visitConditionalExpr(Expr.Conditional expr) {
+    return parenthesize("?:", expr.condition, expr.thenBranch, expr.elseBranch);
+  }
+
 //> Statements and State omit
   @Override
   public String visitBlockStmt(Stmt.Block stmt) {

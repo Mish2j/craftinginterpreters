@@ -6,6 +6,13 @@ class RpnPrinter implements Expr.Visitor<String> {
         return expr.accept(this);
     }
 
+   @Override
+    public String visitConditionalExpr(Expr.Conditional expr) {
+    return expr.condition.accept(this) + " " +
+            expr.thenBranch.accept(this) + " " +
+            expr.elseBranch.accept(this) + " ?:";
+    }
+
     @Override
     public String visitLiteralExpr(Expr.Literal expr) {
         if (expr.value == null) return "nil";

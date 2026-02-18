@@ -56,6 +56,15 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
   }
 //< resolve-statements
+
+@Override
+public Void visitConditionalExpr(Expr.Conditional expr) {
+  resolve(expr.condition);
+  resolve(expr.thenBranch);
+  resolve(expr.elseBranch);
+  return null;
+}
+
 //> visit-block-stmt
   @Override
   public Void visitBlockStmt(Stmt.Block stmt) {

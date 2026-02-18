@@ -307,7 +307,7 @@ private Expr comma() {
     Expr expr = equality();
 */
 //> Control Flow or-in-assignment
-    Expr expr = or();
+    Expr expr = conditional();
 //< Control Flow or-in-assignment
 
     if (match(EQUAL)) {
@@ -330,6 +330,21 @@ private Expr comma() {
     return expr;
   }
 //< Statements and State parse-assignment
+
+  private Expr conditional() {
+    Expr expr = equality();
+
+    if (match(QUESTION)) {
+      Expr thenBranch = expression();
+      consume(COLON,
+          "Expect ':' after then branch of conditional expression.");
+      Expr elseBranch = conditional();
+      expr = new Expr.Conditional(expr, thenBranch, elseBranch);
+    }
+
+    return expr;
+  }
+
 //> Control Flow or
   private Expr or() {
     Expr expr = and();

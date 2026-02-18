@@ -491,6 +491,18 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 //< Resolving and Binding look-up-variable
+
+  @Override
+  public Object visitConditionalExpr(Expr.Conditional expr) {
+    Object condition = evaluate(expr.condition);
+
+    if (isTruthy(condition)) {
+      return evaluate(expr.thenBranch);
+    } else {
+      return evaluate(expr.elseBranch);
+    }
+  }
+
 //< Statements and State visit-variable
 //> check-operand
   private void checkNumberOperand(Token operator, Object operand) {
