@@ -74,6 +74,16 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 //< Statements and State interpret
+
+  private static class BreakJump extends RuntimeException {
+  BreakJump() { super(null, null, false, false); } // no stack trace noise
+}
+
+  @Override
+  public Void visitBreakStmt(Stmt.Break stmt) {
+    throw new BreakJump();
+  }
+
 //> evaluate
   private Object evaluate(Expr expr) {
     return expr.accept(this);
@@ -236,8 +246,12 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Control Flow visit-while
   @Override
   public Void visitWhileStmt(Stmt.While stmt) {
-    while (isTruthy(evaluate(stmt.condition))) {
-      execute(stmt.body);
+    try {
+      while (isTruthy(evaluate(stmt.condition))) {
+        execute(stmt.body);
+      }
+    } catch (BreakJump jump) {
+      // exit loop
     }
     return null;
   }
