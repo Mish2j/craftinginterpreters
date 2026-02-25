@@ -33,7 +33,7 @@ public class Lox {
 //> run-file
   private static void runFile(String path) throws IOException {
     byte[] bytes = Files.readAllBytes(Paths.get(path));
-    run(new String(bytes, Charset.defaultCharset()));
+    run(new String(bytes, Charset.defaultCharset()), false);
 //> exit-code
 
     // Indicate an error in the exit code.
@@ -53,7 +53,7 @@ public class Lox {
       System.out.print("> ");
       String line = reader.readLine();
       if (line == null) break;
-      run(line);
+      run(line, true);
 //> reset-had-error
       hadError = false;
 //< reset-had-error
@@ -61,7 +61,7 @@ public class Lox {
   }
 //< prompt
 //> run
-  private static void run(String source) {
+  private static void run(String source, boolean repl) {
     Scanner scanner = new Scanner(source);
     List<Token> tokens = scanner.scanTokens();
 /* Scanning run < Parsing Expressions print-ast
@@ -72,7 +72,7 @@ public class Lox {
     }
 */
 //> Parsing Expressions print-ast
-    Parser parser = new Parser(tokens);
+    Parser parser = new Parser(tokens, repl);
 /* Parsing Expressions print-ast < Statements and State parse-statements
     Expr expression = parser.parse();
 */

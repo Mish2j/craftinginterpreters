@@ -18,10 +18,17 @@ class Parser {
 //< parse-error
   private final List<Token> tokens;
   private int current = 0;
+  private final boolean repl;
 
   Parser(List<Token> tokens) {
-    this.tokens = tokens;
+    this(tokens, false);
   }
+
+  Parser(List<Token> tokens, boolean repl) {
+    this.tokens = tokens;
+    this.repl = repl;
+  }
+
 /* Parsing Expressions parse < Statements and State parse
   Expr parse() {
     try {
@@ -258,10 +265,15 @@ private Expr comma() {
 //< Control Flow while-statement
 //> Statements and State parse-expression-statement
   private Stmt expressionStatement() {
-    Expr expr = expression();
-    consume(SEMICOLON, "Expect ';' after expression.");
-    return new Stmt.Expression(expr);
-  }
+  Expr expr = expression();
+
+  if (match(SEMICOLON)) return new Stmt.Expression(expr);
+
+  if (repl && isAtEnd()) return new Stmt.Print(expr);
+
+  consume(SEMICOLON, "Expect ';' after expression.");
+  return null; 
+}
 //< Statements and State parse-expression-statement
 //> Functions parse-function
   private Stmt.Function function(String kind) {
@@ -488,6 +500,10 @@ private Expr comma() {
 
       if (match(NUMBER, STRING)) {
         return new Expr.Literal(previous().literal);
+      }
+
+      if (match(IDENTIFIER)) {
+        return new Expr.Variable(previous());
       }
 
       if (match(LEFT_PAREN)) {
