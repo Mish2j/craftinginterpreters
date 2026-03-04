@@ -114,7 +114,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
       }
 
 //< resolver-initializer-type
-      resolveFunction(method, declaration); // [local]
+      resolveFunction(method.function, declaration); // [local]
     }
 
 //> resolver-end-this-scope
@@ -149,11 +149,16 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     resolveFunction(stmt);
 */
 //> pass-function-type
-    resolveFunction(stmt, FunctionType.FUNCTION);
+    resolveFunction(stmt.function, FunctionType.FUNCTION);
 //< pass-function-type
     return null;
   }
 //< visit-function-stmt
+  @Override
+  public Void visitFunctionExpr(Expr.Function expr) {
+    resolveFunction(expr, FunctionType.FUNCTION);
+    return null;
+  }
 //> visit-if-stmt
   @Override
   public Void visitIfStmt(Stmt.If stmt) {
@@ -345,7 +350,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 */
 //> set-current-function
   private void resolveFunction(
-      Stmt.Function function, FunctionType type) {
+      Expr.Function function, FunctionType type) {
     FunctionType enclosingFunction = currentFunction;
     currentFunction = type;
 

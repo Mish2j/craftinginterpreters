@@ -140,8 +140,7 @@ class Interpreter implements Expr.Visitor<Object>,
       LoxFunction function = new LoxFunction(method, environment);
 */
 //> interpreter-method-initializer
-      LoxFunction function = new LoxFunction(method, environment,
-          method.name.lexeme.equals("init"));
+      LoxFunction function = new LoxFunction(method.name.lexeme, method.function, environment, method.name.lexeme.equals("init"));
 //< interpreter-method-initializer
       methods.put(method.name.lexeme, function);
     }
@@ -185,13 +184,16 @@ class Interpreter implements Expr.Visitor<Object>,
     LoxFunction function = new LoxFunction(stmt, environment);
 */
 //> Classes construct-function
-    LoxFunction function = new LoxFunction(stmt, environment,
-                                           false);
+    LoxFunction function = new LoxFunction(stmt.name.lexeme, stmt.function, environment, false);
 //< Classes construct-function
     environment.define(stmt.name.lexeme, function);
     return null;
   }
 //< Functions visit-function
+  @Override
+  public Object visitFunctionExpr(Expr.Function expr) {
+    return new LoxFunction(null, expr, environment, false);
+  }
 //> Control Flow visit-if
   @Override
   public Void visitIfStmt(Stmt.If stmt) {

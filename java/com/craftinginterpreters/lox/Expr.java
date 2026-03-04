@@ -5,6 +5,7 @@ import java.util.List;
 
 abstract class Expr {
   interface Visitor<R> {
+    R visitFunctionExpr(Expr.Function expr);
     R visitAssignExpr(Assign expr);
     R visitBinaryExpr(Binary expr);
     R visitCallExpr(Call expr);
@@ -20,6 +21,22 @@ abstract class Expr {
   }
 
   // Nested Expr classes here...
+//> expr-function
+  static class Function extends Expr {
+    Function(List<Token> params, List<Stmt> body) {
+      this.params = params;
+      this.body = body;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitFunctionExpr(this);
+    }
+
+    final List<Token> params;
+    final List<Stmt> body;
+  }
+//< expr-function
 //> expr-assign
   static class Assign extends Expr {
     Assign(Token name, Expr value) {

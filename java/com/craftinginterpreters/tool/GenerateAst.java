@@ -15,6 +15,7 @@ public class GenerateAst {
     String outputDir = args[0];
 //> call-define-ast
     defineAst(outputDir, "Expr", Arrays.asList(
+    "Function : List<Token> params, List<Stmt> body",
 //> Statements and State assign-expr
       "Assign   : Token name, Expr value",
 //< Statements and State assign-expr
@@ -62,8 +63,7 @@ public class GenerateAst {
 //< Inheritance superclass-ast
       "Expression : Expr expression",
 //> Functions function-ast
-      "Function   : Token name, List<Token> params," +
-                  " List<Stmt> body",
+      "Function : Token name, Expr.Function function",
 //< Functions function-ast
 //> Control Flow if-ast
       "If         : Expr condition, Stmt thenBranch," +
