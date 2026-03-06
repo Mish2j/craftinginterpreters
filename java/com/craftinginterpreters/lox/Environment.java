@@ -9,13 +9,16 @@ class Environment {
   final Environment enclosing;
 //< enclosing-field
   private final Map<String, Object> values = new HashMap<>();
+  private final Object[] slots;
 //> environment-constructors
   Environment() {
     enclosing = null;
+    slots = null;
   }
 
-  Environment(Environment enclosing) {
+  Environment(Environment enclosing, int slotCount) {
     this.enclosing = enclosing;
+    this.slots = new Object[slotCount];
   }
 //< environment-constructors
 //> environment-get
@@ -68,15 +71,22 @@ class Environment {
   }
 //< Resolving and Binding ancestor
 //> Resolving and Binding get-at
-  Object getAt(int distance, String name) {
-    return ancestor(distance).values.get(name);
+  Object getAt(int distance, int slot) {
+    Environment environment = ancestor(distance);
+    return environment.slots[slot];
   }
 //< Resolving and Binding get-at
 //> Resolving and Binding assign-at
-  void assignAt(int distance, Token name, Object value) {
-    ancestor(distance).values.put(name.lexeme, value);
+  void assignAt(int distance, int slot, Object value) {
+    Environment environment = ancestor(distance);
+    environment.slots[slot] = value;
   }
 //< Resolving and Binding assign-at
+
+  void setSlot(int slot, Object value) {
+    slots[slot] = value;
+  }
+
 //> omit
   @Override
   public String toString() {

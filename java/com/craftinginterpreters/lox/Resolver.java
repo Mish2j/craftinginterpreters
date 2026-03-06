@@ -9,7 +9,12 @@ import java.util.Stack;
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   private final Interpreter interpreter;
 //> scopes-field
-  private final Stack<Map<String, Local>> scopes = new Stack<>();
+  private static class Scope {
+  final Map<String, Local> locals = new HashMap<>();
+  int nextSlot = 0;
+}
+
+  private final Stack<Scope> scopes = new Stack<>();
 //< scopes-field
 //> function-type-field
   private FunctionType currentFunction = FunctionType.NONE;
@@ -53,8 +58,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     boolean defined;
     boolean used;
     final Token name;
+    final int slot;
 
-    Local(Token name) { this.name = name; }
+    Local(Token name, int slot) {
+      this.name = name;
+      this.slot = slot;
+    }
   }
 
 //> resolve-statements
@@ -83,7 +92,8 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
   public Void visitBlockStmt(Stmt.Block stmt) {
     beginScope();
     resolve(stmt.statements);
-    endScope();
+    // interpreter.noteBlockSlots(stmt, scopes.peek().nextSlot);
+    scopes.pop();
     return null;
   }
 //< visit-block-stmt
@@ -93,10 +103,7 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
 //> set-current-class
     ClassType enclosingClass = currentClass;
     currentClass = ClassType.CLASS;
-    Local local = new Local(null);
-    local.defined = true;
-    local.used = true; 
-
+  
 //< set-current-class
     declare(stmt.name);
     define(stmt.name);
@@ -121,14 +128,14 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
   
     if (stmt.superclass != null) {
       beginScope();
-      scopes.peek().put("super", local);
+       declareSynthetic("super");
     }
 //< Inheritance begin-super-scope
 //> resolve-methods
 
 //> resolver-begin-this-scope
     beginScope();
-    scopes.peek().put("this", local);
+    declareSynthetic("this");
 
 //< resolver-begin-this-scope
     for (Stmt.Function method : stmt.methods) {
@@ -222,6 +229,12 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
   @Override
   public Void visitVarStmt(Stmt.Var stmt) {
     declare(stmt.name);
+
+    if (!scopes.isEmpty()) {
+      int slot = scopes.peek().locals.get(stmt.name.lexeme).slot;
+      interpreter.noteVarSlot(stmt, slot);
+    }
+
     if (stmt.initializer != null) {
       resolve(stmt.initializer);
     }
@@ -345,7 +358,7 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
   @Override
   public Void visitVariableExpr(Expr.Variable expr) {
     if (!scopes.isEmpty()) {
-      Local local = scopes.peek().get(expr.name.lexeme);
+       Local local = scopes.peek().locals.get(expr.name.lexeme);
       if (local != null && !local.defined) {
         Lox.error(expr.name,
             "Can't read local variable in its own initializer.");
@@ -378,12 +391,21 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
 
 //< set-current-function
     beginScope();
-    for (Token param : function.params) {
+    int[] paramSlots = new int[function.params.size()];
+
+    for (int i = 0; i < function.params.size(); i++) {
+      Token param = function.params.get(i);
       declare(param);
+      paramSlots[i] = scopes.peek().locals.get(param.lexeme).slot;
       define(param);
     }
+
     resolve(function.body);
-    endScope();
+
+    int slotCount = scopes.peek().nextSlot;
+    interpreter.noteFunctionSlots(function, slotCount, paramSlots);
+
+    scopes.pop();
 //> restore-current-function
     currentFunction = enclosingFunction;
 //< restore-current-function
@@ -391,52 +413,52 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
 //< resolve-function
 //> begin-scope
   private void beginScope() {
-    scopes.push(new HashMap<String, Local>());
+    scopes.push(new Scope());
   }
 //< begin-scope
 //> end-scope
   private void endScope() {
-    Map<String, Local> scope = scopes.pop();
-   for (Local local : scope.values()) {
-      if (local.name == null) continue; // synthetic like this/super
-      if (local.defined && !local.used) {
-        Lox.error(local.name, "Local variable '" + local.name.lexeme + "' is never used.");
-      }
-    }
+    scopes.pop();
   }
 //< end-scope
 //> declare
   private void declare(Token name) {
     if (scopes.isEmpty()) return;
 
-    Map<String, Local> scope = scopes.peek();
-//> duplicate-variable
-    if (scope.containsKey(name.lexeme)) {
-      Lox.error(name,
-          "Already a variable with this name in this scope.");
+    Scope scope = scopes.peek();
+    if (scope.locals.containsKey(name.lexeme)) {
+      Lox.error(name, "Already a variable with this name in this scope.");
     }
 
-//< duplicate-variable
-    scope.put(name.lexeme, new Local(name));
+    int slot = scope.nextSlot++;
+    scope.locals.put(name.lexeme, new Local(name, slot)); // defined=false
   }
 //< declare
 //> define
   private void define(Token name) {
     if (scopes.isEmpty()) return;
-    scopes.peek().get(name.lexeme).defined = true;
+    scopes.peek().locals.get(name.lexeme).defined = true;
   }
 //< define
 //> resolve-local
   private void resolveLocal(Expr expr, Token name) {
     for (int i = scopes.size() - 1; i >= 0; i--) {
-      Map<String, Local> scope = scopes.get(i);
-      Local local = scope.get(name.lexeme);
+      Scope scope = scopes.get(i);
+      Local local = scope.locals.get(name.lexeme);
       if (local != null) {
         local.used = true;
-        interpreter.resolve(expr, scopes.size() - 1 - i);
+        interpreter.resolve(expr, scopes.size() - 1 - i, local.slot);
         return;
       }
     }
   }
 //< resolve-local
+  private void declareSynthetic(String name) {
+    Scope scope = scopes.peek();
+    int slot = scope.nextSlot++;
+    Local local = new Local(null, slot);
+    local.defined = true;
+    local.used = true;
+    scope.locals.put(name, local);
+  }
 }
