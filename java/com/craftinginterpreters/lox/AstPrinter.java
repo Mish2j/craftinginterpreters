@@ -196,10 +196,10 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
 //< Classes omit
 //> Inheritance omit
 
-  @Override
-  public String visitSuperExpr(Expr.Super expr) {
-    return parenthesize2("super", expr.method);
-  }
+  // @Override
+  // public String visitSuperExpr(Expr.Super expr) {
+  //   return parenthesize2("super", expr.method);
+  // }
 //< Inheritance omit
 //> Classes omit
 

@@ -13,11 +13,12 @@ abstract class Expr {
     R visitLiteralExpr(Literal expr);
     R visitLogicalExpr(Logical expr);
     R visitSetExpr(Set expr);
-    R visitSuperExpr(Super expr);
+    // R visitSuperExpr(Super expr);
     R visitThisExpr(This expr);
     R visitUnaryExpr(Unary expr);
     R visitVariableExpr(Variable expr);
     R visitConditionalExpr(Conditional expr);
+    R visitInnerExpr(Inner expr);
   }
 
   // Nested Expr classes here...
@@ -38,6 +39,19 @@ abstract class Expr {
   final Expr thenBranch;
   final Expr elseBranch;
 }
+
+  static class Inner extends Expr {
+    final Token keyword;
+
+    Inner(Token keyword) {
+      this.keyword = keyword;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitInnerExpr(this);
+    }
+  }
 
 //> expr-assign
   static class Assign extends Expr {
@@ -172,20 +186,20 @@ abstract class Expr {
   }
 //< expr-set
 //> expr-super
-  static class Super extends Expr {
-    Super(Token keyword, Token method) {
-      this.keyword = keyword;
-      this.method = method;
-    }
+  // static class Super extends Expr {
+  //   Super(Token keyword, Token method) {
+  //     this.keyword = keyword;
+  //     this.method = method;
+  //   }
 
-    @Override
-    <R> R accept(Visitor<R> visitor) {
-      return visitor.visitSuperExpr(this);
-    }
+  //   @Override
+  //   <R> R accept(Visitor<R> visitor) {
+  //     return visitor.visitSuperExpr(this);
+  //   }
 
-    final Token keyword;
-    final Token method;
-  }
+  //   final Token keyword;
+  //   final Token method;
+  // }
 //< expr-super
 //> expr-this
   static class This extends Expr {
