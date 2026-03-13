@@ -126,12 +126,14 @@ class Interpreter implements Expr.Visitor<Object>,
   public Void visitClassStmt(Stmt.Class stmt) {
 //> Inheritance interpret-superclass
     Object superclass = null;
+    LoxClass superklass = null;
     if (stmt.superclass != null) {
       superclass = evaluate(stmt.superclass);
       if (!(superclass instanceof LoxClass)) {
         throw new RuntimeError(stmt.superclass.name,
             "Superclass must be a class.");
       }
+      superklass = (LoxClass) superclass;
     }
 
 //< Inheritance interpret-superclass
@@ -157,12 +159,26 @@ class Interpreter implements Expr.Visitor<Object>,
       methods.put(method.name.lexeme, function);
     }
 
+
+    Map<String, LoxFunction> classMethods = new HashMap<>();
+    for (Stmt.Function method : stmt.classMethods) {
+      LoxFunction function = new LoxFunction(method, environment, false);
+      classMethods.put(method.name.lexeme, function);
+    }
+
+    LoxClass metaSuperclass = (superklass == null) ? null : superklass.metaclass;
+    LoxClass metaclass = new LoxClass(
+        stmt.name.lexeme + " metaclass",
+        metaSuperclass,
+        classMethods,
+        null
+    );
+
 /* Classes interpret-methods < Inheritance interpreter-construct-class
     LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
 */
 //> Inheritance interpreter-construct-class
-    LoxClass klass = new LoxClass(stmt.name.lexeme,
-        (LoxClass)superclass, methods);
+    LoxClass klass = new LoxClass(stmt.name.lexeme, superklass, methods, metaclass);
 //> end-superclass-environment
 
     if (superclass != null) {

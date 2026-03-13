@@ -108,11 +108,18 @@ private Expr comma() {
     }
 
 //< Inheritance parse-superclass
-    consume(LEFT_BRACE, "Expect '{' before class body.");
+    consume(LEFT_BRACE, "Expect '{' before class body.");  
 
     List<Stmt.Function> methods = new ArrayList<>();
+    List<Stmt.Function> classMethods = new ArrayList<>();
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
-      methods.add(function("method"));
+      boolean isClassMethod = match(CLASS);
+      Stmt.Function method = function("method");
+      if (isClassMethod) {
+        classMethods.add(method);
+      } else {
+        methods.add(method);
+      }
     }
 
     consume(RIGHT_BRACE, "Expect '}' after class body.");
@@ -121,7 +128,7 @@ private Expr comma() {
     return new Stmt.Class(name, methods);
 */
 //> Inheritance construct-class-ast
-    return new Stmt.Class(name, superclass, methods);
+    return new Stmt.Class(name, superclass, methods, classMethods);
 //< Inheritance construct-class-ast
   }
 //< Classes parse-class-declaration

@@ -142,6 +142,10 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
       resolveFunction(method, declaration); // [local]
     }
 
+    for (Stmt.Function method : stmt.classMethods) {
+      resolveFunction(method, FunctionType.METHOD);
+    }
+
 //> resolver-end-this-scope
     endScope();
 
