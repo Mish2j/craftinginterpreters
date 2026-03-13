@@ -4,6 +4,7 @@ package com.craftinginterpreters.lox;
 
 //> Functions import-array-list
 import java.util.ArrayList;
+import java.util.Collections;
 //< Functions import-array-list
 //> Resolving and Binding import-hash-map
 import java.util.HashMap;
@@ -404,12 +405,21 @@ class Interpreter implements Expr.Visitor<Object>,
   @Override
   public Object visitGetExpr(Expr.Get expr) {
     Object object = evaluate(expr.object);
+
     if (object instanceof LoxInstance) {
-      return ((LoxInstance) object).get(expr.name);
+      Object value = ((LoxInstance) object).get(expr.name);
+
+      if (value instanceof LoxFunction) {
+        LoxFunction function = (LoxFunction) value;
+        if (function.isGetter) {
+          return function.call(this, Collections.emptyList());
+        }
+      }
+
+      return value;
     }
 
-    throw new RuntimeError(expr.name,
-        "Only instances have properties.");
+    throw new RuntimeError(expr.name, "Only instances have properties.");
   }
 //< Classes interpreter-visit-get
 //> visit-grouping

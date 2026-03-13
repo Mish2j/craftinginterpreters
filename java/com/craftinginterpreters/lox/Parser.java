@@ -6,6 +6,7 @@ import java.util.ArrayList;
 //< Statements and State parser-imports
 //> Control Flow import-arrays
 import java.util.Arrays;
+import java.util.Collections;
 //< Control Flow import-arrays
 import java.util.List;
 
@@ -95,6 +96,33 @@ private Expr comma() {
       return null;
     }
   }
+
+  private Stmt.Function classMember(String kind) {
+    Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+    if (match(LEFT_PAREN)) {
+      List<Token> parameters = new ArrayList<>();
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(
+              consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+      consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+      List<Stmt> body = block();
+      return new Stmt.Function(name, parameters, body, false);
+    }
+
+    consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+    List<Stmt> body = block();
+    return new Stmt.Function(name, Collections.emptyList(), body, true);
+  }
+
 //< Statements and State declaration
 //> Classes parse-class-declaration
   private Stmt classDeclaration() {
@@ -114,11 +142,11 @@ private Expr comma() {
     List<Stmt.Function> classMethods = new ArrayList<>();
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
       boolean isClassMethod = match(CLASS);
-      Stmt.Function method = function("method");
+      Stmt.Function member = classMember("method");
       if (isClassMethod) {
-        classMethods.add(method);
+        classMethods.add(member);
       } else {
-        methods.add(method);
+        methods.add(member);
       }
     }
 
@@ -301,25 +329,28 @@ private Expr comma() {
   private Stmt.Function function(String kind) {
     Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
 //> parse-parameters
-    consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
-    List<Token> parameters = new ArrayList<>();
-    if (!check(RIGHT_PAREN)) {
-      do {
-        if (parameters.size() >= 255) {
-          error(peek(), "Can't have more than 255 parameters.");
-        }
+     if (match(LEFT_PAREN)) {
+      List<Token> parameters = new ArrayList<>();
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+      consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
 
-        parameters.add(
-            consume(IDENTIFIER, "Expect parameter name."));
-      } while (match(COMMA));
+      List<Stmt> body = block();
+      return new Stmt.Function(name, parameters, body, false);
     }
-    consume(RIGHT_PAREN, "Expect ')' after parameters.");
 //< parse-parameters
 //> parse-body
 
     consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
     List<Stmt> body = block();
-    return new Stmt.Function(name, parameters, body);
+     return new Stmt.Function(name, Collections.emptyList(), body, true);
 //< parse-body
   }
 //< Functions parse-function
@@ -516,6 +547,7 @@ private Expr comma() {
 //< Functions call
 //> primary
  private Expr primary() {
+      if (match(THIS)) return new Expr.This(previous());
       if (match(FALSE)) return new Expr.Literal(false);
       if (match(TRUE)) return new Expr.Literal(true);
       if (match(NIL)) return new Expr.Literal(null);
