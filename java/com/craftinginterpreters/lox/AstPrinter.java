@@ -21,6 +21,27 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   }
 //< Statements and State omit
 //> visit-methods
+
+  @Override
+  public String visitListExpr(Expr.List expr) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("(list");
+
+    for (Expr element : expr.elements) {
+      builder.append(" ");
+      builder.append(element.accept(this));
+    }
+
+    builder.append(")");
+    return builder.toString();
+  }
+
+  @Override
+  public String visitIndexExpr(Expr.Index expr) {
+    return "(index " + expr.object.accept(this) + " "
+        + expr.index.accept(this) + ")";
+  }
+
 //> Statements and State omit
   @Override
   public String visitBlockStmt(Stmt.Block stmt) {

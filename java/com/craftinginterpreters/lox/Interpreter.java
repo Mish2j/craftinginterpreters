@@ -35,6 +35,10 @@ class Interpreter implements Expr.Visitor<Object>,
 
 //< Statements and State environment-field
 //> Functions interpreter-constructor
+  private static final Token NATIVE_ERROR_TOKEN =
+    new Token(TokenType.IDENTIFIER, "native", null, -1);
+
+
   Interpreter() {
     globals.define("clock", new LoxCallable() {
       @Override
@@ -49,6 +53,30 @@ class Interpreter implements Expr.Visitor<Object>,
       @Override
       public String toString() { return "<native fn>"; }
     });
+
+    globals.define("len", new LoxCallable() {
+      @Override
+      public int arity() {
+        return 1;
+      }
+
+      @Override
+        public Object call(Interpreter interpreter, List<Object> arguments) {
+          Object value = arguments.get(0);
+
+          if (value instanceof List<?>) {
+            return (double) ((List<?>) value).size();
+          }
+
+          throw new RuntimeError(NATIVE_ERROR_TOKEN,
+              "len() expects a list.");
+        }
+
+        @Override
+        public String toString() {
+          return "<native fn>";
+        }
+      });
   }
   
 //< Functions interpreter-constructor
@@ -103,6 +131,51 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 //< Statements and State execute-block
+
+  @Override
+  public Object visitListExpr(Expr.List expr) {
+    List<Object> elements = new ArrayList<>();
+
+    for (Expr element : expr.elements) {
+      elements.add(evaluate(element));
+    }
+
+    return elements;
+  }
+
+  @Override
+  public Object visitIndexExpr(Expr.Index expr) {
+    Object object = evaluate(expr.object);
+    Object indexValue = evaluate(expr.index);
+
+    if (!(object instanceof List<?>)) {
+      throw new RuntimeError(expr.bracket,
+          "Only lists can be indexed.");
+    }
+
+    if (!(indexValue instanceof Double)) {
+      throw new RuntimeError(expr.bracket,
+          "List index must be a number.");
+    }
+
+    double d = (Double) indexValue;
+    int i = (int) d;
+
+    if (i != d) {
+      throw new RuntimeError(expr.bracket,
+          "List index must be an integer.");
+    }
+
+    List<?> list = (List<?>) object;
+
+    if (i < 0 || i >= list.size()) {
+      throw new RuntimeError(expr.bracket,
+          "List index out of bounds.");
+    }
+
+    return list.get(i);
+  }
+
 //> Statements and State visit-block
   @Override
   public Void visitBlockStmt(Stmt.Block stmt) {
@@ -521,6 +594,20 @@ class Interpreter implements Expr.Visitor<Object>,
 //> stringify
   private String stringify(Object object) {
     if (object == null) return "nil";
+
+    if (object instanceof List<?>) {
+      StringBuilder builder = new StringBuilder();
+      builder.append("[");
+
+      List<?> list = (List<?>) object;
+      for (int i = 0; i < list.size(); i++) {
+        if (i > 0) builder.append(", ");
+        builder.append(stringify(list.get(i)));
+      }
+
+      builder.append("]");
+      return builder.toString();
+    }
 
     if (object instanceof Double) {
       String text = object.toString();

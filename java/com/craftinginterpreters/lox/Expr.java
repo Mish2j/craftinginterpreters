@@ -17,6 +17,8 @@ abstract class Expr {
     R visitThisExpr(This expr);
     R visitUnaryExpr(Unary expr);
     R visitVariableExpr(Variable expr);
+    R visitListExpr(List expr);
+    R visitIndexExpr(Index expr);
   }
 
   // Nested Expr classes here...
@@ -212,6 +214,38 @@ abstract class Expr {
     final Token name;
   }
 //< expr-variable
+//> expr-list
+  static class List extends Expr {
+    List(List<Expr> elements) {
+      this.elements = elements;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitListExpr(this);
+    }
+
+    final List<Expr> elements;
+  }
+//< expr-list
+//> expr-index
+  static class Index extends Expr {
+    Index(Expr object, Token bracket, Expr index) {
+      this.object = object;
+      this.bracket = bracket;
+      this.index = index;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitIndexExpr(this);
+    }
+
+    final Expr object;
+    final Token bracket;
+    final Expr index;
+  }
+//< expr-index
 
   abstract <R> R accept(Visitor<R> visitor);
 }

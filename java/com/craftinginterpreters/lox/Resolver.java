@@ -56,6 +56,22 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
   }
 //< resolve-statements
+
+  @Override
+  public Void visitListExpr(Expr.List expr) {
+    for (Expr element : expr.elements) {
+      resolve(element);
+    }
+    return null;
+  }
+
+  @Override
+  public Void visitIndexExpr(Expr.Index expr) {
+    resolve(expr.object);
+    resolve(expr.index);
+    return null;
+  }
+
 //> visit-block-stmt
   @Override
   public Void visitBlockStmt(Stmt.Block stmt) {

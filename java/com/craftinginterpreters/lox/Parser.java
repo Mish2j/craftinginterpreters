@@ -443,7 +443,10 @@ class Parser {
             "Expect property name after '.'.");
         expr = new Expr.Get(expr, name);
 //< Classes parse-property
-      } else {
+      } else if (match(LEFT_BRACKET)) {
+        expr = finishIndex(expr);
+      }
+      else {
         break;
       }
     }
@@ -480,6 +483,17 @@ class Parser {
       return new Expr.Variable(previous());
     }
 //< Statements and State parse-identifier
+
+    if (match(LEFT_BRACKET)) {
+      List<Expr> elements = new ArrayList<>();
+      if (!check(RIGHT_BRACKET)) {
+        do {
+          elements.add(expression());
+        } while (match(COMMA));
+      }
+      consume(RIGHT_BRACKET, "Expect ']' after list elements.");
+      return new Expr.List(elements);
+    }
 
     if (match(LEFT_PAREN)) {
       Expr expr = expression();
@@ -565,4 +579,10 @@ class Parser {
     }
   }
 //< synchronize
+  private Expr finishIndex(Expr object) {
+    Expr index = expression();
+    Token bracket = consume(RIGHT_BRACKET, "Expect ']' after index.");
+    return new Expr.Index(object, bracket, index);
+  }
+
 }

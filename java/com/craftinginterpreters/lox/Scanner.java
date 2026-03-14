@@ -59,6 +59,8 @@ class Scanner {
   private void scanToken() {
     char c = advance();
     switch (c) {
+      case '[': addToken(LEFT_BRACKET); break;
+      case ']': addToken(RIGHT_BRACKET); break;
       case '(': addToken(LEFT_PAREN); break;
       case ')': addToken(RIGHT_PAREN); break;
       case '{': addToken(LEFT_BRACE); break;
