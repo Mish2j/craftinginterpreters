@@ -9,6 +9,9 @@
 #include "vm.h"
 //< Garbage Collection chunk-include-vm
 
+#include <stdio.h>
+#include <stdlib.h>
+
 void initChunk(Chunk* chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
@@ -68,6 +71,22 @@ void writeChunk(Chunk* chunk, uint8_t byte, int line) {
   }
 }
 //< write-chunk
+void writeConstant(Chunk* chunk, Value value, int line) {
+  int constant = addConstant(chunk, value);
+
+  if (constant <= 0xff) {
+    writeChunk(chunk, OP_CONSTANT, line);
+    writeChunk(chunk, (uint8_t)constant, line);
+  } else if (constant <= 0xffffff) {
+    writeChunk(chunk, OP_CONSTANT_LONG, line);
+    writeChunk(chunk, (constant >> 16) & 0xff, line);
+    writeChunk(chunk, (constant >> 8) & 0xff, line);
+    writeChunk(chunk, constant & 0xff, line);
+  } else {
+    fprintf(stderr, "Too many constants in one chunk.\n");
+    exit(1);
+  }
+}
 //> add-constant
 int addConstant(Chunk* chunk, Value value) {
 //> Garbage Collection add-constant-push

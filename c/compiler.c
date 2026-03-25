@@ -274,7 +274,16 @@ static uint8_t makeConstant(Value value) {
 //< Compiling Expressions make-constant
 //> Compiling Expressions emit-constant
 static void emitConstant(Value value) {
-  emitBytes(OP_CONSTANT, makeConstant(value));
+  int constant = makeConstant(value);
+
+  if (constant <= 0xff) {
+    emitBytes(OP_CONSTANT, (uint8_t)constant);
+  } else {
+    emitByte(OP_CONSTANT_LONG);
+    emitByte((constant >> 16) & 0xff);
+    emitByte((constant >> 8) & 0xff);
+    emitByte(constant & 0xff);
+  }
 }
 //< Compiling Expressions emit-constant
 //> Jumping Back and Forth patch-jump
