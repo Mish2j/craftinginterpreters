@@ -64,16 +64,16 @@ static void runtimeError(const char* format, ...) {
 */
 //> Calls and Functions runtime-error-stack
   for (int i = vm.frameCount - 1; i >= 0; i--) {
-    CallFrame* frame = &vm.frames[i];
+    CallFrame* frame = &vm.frames[vm.frameCount - 1];
 /* Calls and Functions runtime-error-stack < Closures runtime-error-function
     ObjFunction* function = frame->function;
 */
 //> Closures runtime-error-function
     ObjFunction* function = frame->closure->function;
 //< Closures runtime-error-function
-    size_t instruction = frame->ip - function->chunk.code - 1;
-    fprintf(stderr, "[line %d] in ", // [minus]
-            function->chunk.lines[instruction]);
+    int instruction = (int)(frame->ip - frame->closure->function->chunk.code - 1);
+    fprintf(stderr, "[line %d] in script\n",
+        getLine(&frame->closure->function->chunk, instruction));
     if (function->name == NULL) {
       fprintf(stderr, "script\n");
     } else {
