@@ -123,10 +123,10 @@ typedef struct {
 struct ObjString {
   Obj obj;
   int length;
-  char* chars;
 //> Hash Tables obj-string-hash
   uint32_t hash;
 //< Hash Tables obj-string-hash
+  char chars[];
 };
 //< obj-string
 //> Closures obj-upvalue

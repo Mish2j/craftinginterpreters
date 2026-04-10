@@ -109,14 +109,14 @@ static ObjString* allocateString(char* chars, int length) {
 */
 //> allocate-string
 //> Hash Tables allocate-string
-static ObjString* allocateString(char* chars, int length,
-                                 uint32_t hash) {
+static ObjString* allocateString(int length, uint32_t hash) {
 //< Hash Tables allocate-string
-  ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
-  string->length = length;
-  string->chars = chars;
-//> Hash Tables allocate-store-hash
-  string->hash = hash;
+  ObjString* string = (ObjString*)allocateObject(
+      sizeof(ObjString) + sizeof(char) * (length + 1), OBJ_STRING);
+   string->length = length;
+   //> Hash Tables allocate-store-hash
+   string->hash = hash;
+   string->chars[length] = '\0';
 //< Hash Tables allocate-store-hash
 //> Hash Tables allocate-store-string
 //> Garbage Collection push-string
@@ -157,6 +157,9 @@ ObjString* takeString(char* chars, int length) {
     return interned;
   }
 
+  ObjString* string = allocateString(length, hash);
+  memcpy(string->chars, chars, length + 1);
+  FREE_ARRAY(char, chars, length + 1);
 //< take-string-intern
   return allocateString(chars, length, hash);
 //< Hash Tables take-string-hash
@@ -172,14 +175,14 @@ ObjString* copyString(const char* chars, int length) {
 
 //< copy-string-intern
 //< Hash Tables copy-string-hash
-  char* heapChars = ALLOCATE(char, length + 1);
-  memcpy(heapChars, chars, length);
-  heapChars[length] = '\0';
+  ObjString* string = allocateString(length, hash);
+  memcpy(string->chars, chars, length);
+  string->chars[length] = '\0';
 /* Strings object-c < Hash Tables copy-string-allocate
   return allocateString(heapChars, length);
 */
 //> Hash Tables copy-string-allocate
-  return allocateString(heapChars, length, hash);
+  return string;
 //< Hash Tables copy-string-allocate
 }
 //> Closures new-upvalue
