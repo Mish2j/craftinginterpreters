@@ -524,7 +524,7 @@ static InterpretResult run() {
       case OP_GET_GLOBAL: {
         ObjString* name = READ_STRING();
         Value value;
-        if (!tableGet(&vm.globals, name, &value)) {
+        if (!tableGet(&vm.globals, OBJ_VAL(name), &value)) {
           runtimeError("Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -535,7 +535,7 @@ static InterpretResult run() {
 //> Global Variables interpret-define-global
       case OP_DEFINE_GLOBAL: {
         ObjString* name = READ_STRING();
-        tableSet(&vm.globals, name, peek(0));
+        tableSet(&vm.globals, OBJ_VAL(name), peek(0));
         pop();
         break;
       }
@@ -543,8 +543,8 @@ static InterpretResult run() {
 //> Global Variables interpret-set-global
       case OP_SET_GLOBAL: {
         ObjString* name = READ_STRING();
-        if (tableSet(&vm.globals, name, peek(0))) {
-          tableDelete(&vm.globals, name); // [delete]
+        if (tableSet(&vm.globals, OBJ_VAL(name), peek(0))) {
+          tableDelete(&vm.globals, OBJ_VAL(name)); // [delete]
           runtimeError("Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
