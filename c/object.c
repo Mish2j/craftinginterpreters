@@ -113,10 +113,12 @@ static ObjString* allocateString(int length, uint32_t hash) {
 //< Hash Tables allocate-string
   ObjString* string = (ObjString*)allocateObject(
       sizeof(ObjString) + sizeof(char) * (length + 1), OBJ_STRING);
-   string->length = length;
+  string->length = length;
    //> Hash Tables allocate-store-hash
-   string->hash = hash;
-   string->chars[length] = '\0';
+  string->hash = hash;
+  string->isOwned = true;
+  string->chars = (char*)(string + 1);
+  string->chars[length] = '\0';
 //< Hash Tables allocate-store-hash
 //> Hash Tables allocate-store-string
 //> Garbage Collection push-string
@@ -131,6 +133,20 @@ static ObjString* allocateString(int length, uint32_t hash) {
 //< Hash Tables allocate-store-string
   return string;
 }
+static ObjString* allocateBorrowedString(const char* chars, int length,
+                                         uint32_t hash) {
+  ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
+  string->length = length;
+  string->hash = hash;
+  string->isOwned = false;
+  string->chars = (char*)chars;
+
+  push(OBJ_VAL(string));
+  tableSet(&vm.strings, string, NIL_VAL);
+  pop();
+
+  return string;
+}
 //< allocate-string
 //> Hash Tables hash-string
 static uint32_t hashString(const char* key, int length) {
@@ -142,7 +158,7 @@ static uint32_t hashString(const char* key, int length) {
   return hash;
 }
 //< Hash Tables hash-string
-//> take-string
+//> make-string
 ObjString* takeString(char* chars, int length) {
 /* Strings take-string < Hash Tables take-string-hash
   return allocateString(chars, length);
@@ -157,12 +173,10 @@ ObjString* takeString(char* chars, int length) {
     return interned;
   }
 
-  ObjString* string = allocateString(length, hash);
+  ObjString* string = allocateOwnedString(length, hash);
   memcpy(string->chars, chars, length + 1);
   FREE_ARRAY(char, chars, length + 1);
-//< take-string-intern
-  return allocateString(chars, length, hash);
-//< Hash Tables take-string-hash
+  return string;
 }
 //< take-string
 ObjString* copyString(const char* chars, int length) {
@@ -174,15 +188,11 @@ ObjString* copyString(const char* chars, int length) {
   if (interned != NULL) return interned;
 
 //< copy-string-intern
-//< Hash Tables copy-string-hash
-  ObjString* string = allocateString(length, hash);
-  memcpy(string->chars, chars, length);
-  string->chars[length] = '\0';
 /* Strings object-c < Hash Tables copy-string-allocate
   return allocateString(heapChars, length);
 */
 //> Hash Tables copy-string-allocate
-  return string;
+  return allocateBorrowedString(chars, length, hash);
 //< Hash Tables copy-string-allocate
 }
 //> Closures new-upvalue

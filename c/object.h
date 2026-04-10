@@ -126,7 +126,8 @@ struct ObjString {
 //> Hash Tables obj-string-hash
   uint32_t hash;
 //< Hash Tables obj-string-hash
-  char chars[];
+  bool isOwned;
+  char* chars;
 };
 //< obj-string
 //> Closures obj-upvalue
