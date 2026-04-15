@@ -10,6 +10,8 @@
 //< Strings memory-include-vm
 //> Garbage Collection debug-log-includes
 
+#include "table.h"
+
 #ifdef DEBUG_LOG_GC
 #include <stdio.h>
 #include "debug.h"

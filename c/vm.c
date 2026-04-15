@@ -267,7 +267,7 @@ static bool callValue(Value callee, int argCount) {
 static bool invokeFromClass(ObjClass* klass, ObjString* name,
                             int argCount) {
   Value method;
-  if (!tableGet(&klass->methods, name, &method)) {
+  if (!tableGet(&klass->methods, OBJ_VAL(name), &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
@@ -301,7 +301,7 @@ static bool invoke(ObjString* name, int argCount) {
 //> Methods and Initializers bind-method
 static bool bindMethod(ObjClass* klass, ObjString* name) {
   Value method;
-  if (!tableGet(&klass->methods, name, &method)) {
+  if (!tableGet(&klass->methods, OBJ_VAL(name), &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
@@ -357,7 +357,7 @@ static void closeUpvalues(Value* last) {
 static void defineMethod(ObjString* name) {
   Value method = peek(0);
   ObjClass* klass = AS_CLASS(peek(1));
-  tableSet(&klass->methods, name, method);
+  tableSet(&klass->methods, OBJ_VAL(name), method);
   pop();
 }
 //< Methods and Initializers define-method
@@ -524,7 +524,7 @@ static InterpretResult run() {
       case OP_GET_GLOBAL: {
         ObjString* name = READ_STRING();
         Value value;
-        if (!tableGet(&vm.globals, name, &value)) {
+        if (!tableGet(&vm.globals, OBJ_VAL(name), &value)) {
           runtimeError("Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -535,7 +535,7 @@ static InterpretResult run() {
 //> Global Variables interpret-define-global
       case OP_DEFINE_GLOBAL: {
         ObjString* name = READ_STRING();
-        tableSet(&vm.globals, name, peek(0));
+        tableSet(&vm.globals, OBJ_VAL(name), peek(0));
         pop();
         break;
       }
@@ -543,8 +543,8 @@ static InterpretResult run() {
 //> Global Variables interpret-set-global
       case OP_SET_GLOBAL: {
         ObjString* name = READ_STRING();
-        if (tableSet(&vm.globals, name, peek(0))) {
-          tableDelete(&vm.globals, name); // [delete]
+        if (tableSet(&vm.globals, OBJ_VAL(name), peek(0))) {
+          tableDelete(&vm.globals, OBJ_VAL(name)); // [delete]
           runtimeError("Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
