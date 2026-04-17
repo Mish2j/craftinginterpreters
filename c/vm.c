@@ -89,7 +89,7 @@ static void runtimeError(const char* format, ...) {
 static void defineNative(const char* name, NativeFn function) {
   push(OBJ_VAL(copyString(name, (int)strlen(name))));
   push(OBJ_VAL(newNative(function)));
-  tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+  tableSet(&vm.globals, OBJ_VAL(AS_STRING(vm.stack[0])), vm.stack[1]);
   pop();
   pop();
 }
@@ -224,7 +224,7 @@ static bool callValue(Value callee, int argCount) {
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
 //> Methods and Initializers call-init
         Value initializer;
-        if (tableGet(&klass->methods, vm.initString,
+        if (tableGet(&klass->methods, OBJ_VAL(vm.initString),
                      &initializer)) {
           return call(AS_CLOSURE(initializer), argCount);
 //> no-init-arity-error
@@ -289,7 +289,7 @@ static bool invoke(ObjString* name, int argCount) {
 //> invoke-field
 
   Value value;
-  if (tableGet(&instance->fields, name, &value)) {
+  if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
     vm.stackTop[-argCount - 1] = value;
     return callValue(value, argCount);
   }
@@ -578,7 +578,7 @@ static InterpretResult run() {
         ObjString* name = READ_STRING();
         
         Value value;
-        if (tableGet(&instance->fields, name, &value)) {
+        if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
           pop(); // Instance.
           push(value);
           break;
@@ -608,7 +608,7 @@ static InterpretResult run() {
 
 //< set-not-instance
         ObjInstance* instance = AS_INSTANCE(peek(1));
-        tableSet(&instance->fields, READ_STRING(), peek(0));
+        tableSet(&instance->fields, OBJ_VAL(READ_STRING()), peek(0));
         Value value = pop();
         pop();
         push(value);

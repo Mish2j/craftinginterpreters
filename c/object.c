@@ -142,7 +142,7 @@ static ObjString* allocateBorrowedString(const char* chars, int length,
   string->chars = (char*)chars;
 
   push(OBJ_VAL(string));
-  tableSet(&vm.strings, string, NIL_VAL);
+  tableSet(&vm.strings, OBJ_VAL(string), NIL_VAL);
   pop();
 
   return string;
@@ -173,7 +173,7 @@ ObjString* takeString(char* chars, int length) {
     return interned;
   }
 
-  ObjString* string = allocateOwnedString(length, hash);
+  ObjString* string = allocateString(length, hash);
   memcpy(string->chars, chars, length + 1);
   FREE_ARRAY(char, chars, length + 1);
   return string;
