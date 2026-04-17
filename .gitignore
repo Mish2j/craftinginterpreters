@@ -16,3 +16,11 @@ xcuserdata/
 # Dart stuff.
 /tool/.dart_tool/
 /tool/.packages
+
+c/*.obj
+c/*.exe
+
+test.lox
+
+# VScode
+.vs/
