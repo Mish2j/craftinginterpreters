@@ -17,6 +17,106 @@
 //< A Virtual Machine main-include-vm
 //> Scanning on Demand repl
 
+#include <time.h>
+#include "table.h"
+#include "object.h"
+#include "value.h"
+
+
+static double nowMs(void) {
+    return (double)clock() * 1000.0 / CLOCKS_PER_SEC;
+}
+
+static Value makeKey(int i) {
+    char buffer[32];
+    int len = snprintf(buffer, sizeof(buffer), "k%d", i);
+    return OBJ_VAL(copyString(buffer, len));
+}
+
+static void benchmarkBasic(int n) {
+    Table table;
+    initTable(&table);
+
+    double start = nowMs();
+    for (int i = 0; i < n; i++) {
+        tableSet(&table, makeKey(i), NUMBER_VAL(i));
+    }
+    double mid = nowMs();
+
+    Value v;
+    for (int i = 0; i < n; i++) {
+        tableGet(&table, makeKey(i), &v);
+    }
+    double end = nowMs();
+
+    printf("Basic (%d)\n", n);
+    printf("  Insert: %.2f ms\n", mid - start);
+    printf("  Lookup: %.2f ms\n", end - mid);
+
+    freeTable(&table);
+}
+
+static void benchmarkRandom(int n) {
+    Table table;
+    initTable(&table);
+
+    for (int i = 0; i < n; i++) {
+        tableSet(&table, makeKey(i), NUMBER_VAL(i));
+    }
+
+    Value v;
+    double start = nowMs();
+    for (int i = 0; i < n; i++) {
+        int r = rand() % n;
+        tableGet(&table, makeKey(r), &v);
+    }
+    double end = nowMs();
+
+    printf("Random lookup (%d)\n", n);
+    printf("  Lookup: %.2f ms\n", end - start);
+
+    freeTable(&table);
+}
+
+static void benchmarkDelete(int n) {
+    Table table;
+    initTable(&table);
+
+    for (int i = 0; i < n; i++) {
+        tableSet(&table, NUMBER_VAL(i), NUMBER_VAL(i));
+    }
+
+    double start = nowMs();
+    for (int i = 0; i < n; i += 2) {
+        tableDelete(&table, NUMBER_VAL(i));
+    }
+    double mid = nowMs();
+
+    for (int i = 0; i < n; i += 2) {
+        tableSet(&table, NUMBER_VAL(i), NUMBER_VAL(i));
+    }
+    double end = nowMs();
+
+    printf("Delete-heavy (%d)\n", n);
+    printf("  Delete: %.2f ms\n", mid - start);
+    printf("  Reinsert: %.2f ms\n", end - mid);
+
+    freeTable(&table);
+}
+
+static void runBenchmarks(void) {
+    printf("Running hash table benchmarks...\n\n");
+
+    benchmarkBasic(10000);
+    printf("\n");
+
+    benchmarkRandom(10000);
+    printf("\n");
+
+    benchmarkDelete(10000);
+    printf("\n");
+}
+
 static void repl() {
   char line[1024];
   for (;;) {
@@ -132,14 +232,19 @@ int main(int argc, const char* argv[]) {
   interpret(&chunk);
 */
 //> Scanning on Demand args
-  if (argc == 1) {
-    repl();
-  } else if (argc == 2) {
-    runFile(argv[1]);
-  } else {
-    fprintf(stderr, "Usage: clox [path]\n");
-    exit(64);
-  }
+    if (argc == 2 && strcmp(argv[1], "--bench") == 0) {
+        runBenchmarks();
+    }
+    else if (argc == 1) {
+     repl();
+    }
+    else if (argc == 2) {
+        runFile(argv[1]);
+    }
+    else {
+        fprintf(stderr, "Usage: clox [path] or clox --bench\n");
+        exit(64);
+    }
   
   freeVM();
 //< Scanning on Demand args
