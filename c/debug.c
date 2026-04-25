@@ -65,6 +65,12 @@ static int byteInstruction(const char* name, Chunk* chunk,
   return offset + 2; // [debug]
 }
 //< Local Variables byte-instruction
+static int shortInstruction(const char* name, Chunk* chunk, int offset) {
+  uint16_t slot = (uint16_t)((chunk->code[offset + 1] << 8) |
+                             chunk->code[offset + 2]);
+  printf("%-16s %4d\n", name, slot);
+  return offset + 3;
+}
 //> Jumping Back and Forth jump-instruction
 static int jumpInstruction(const char* name, int sign,
                            Chunk* chunk, int offset) {
@@ -111,6 +117,10 @@ int disassembleInstruction(Chunk* chunk, int offset) {
       return byteInstruction("OP_GET_LOCAL", chunk, offset);
     case OP_SET_LOCAL:
       return byteInstruction("OP_SET_LOCAL", chunk, offset);
+    case OP_GET_LOCAL_LONG:
+      return shortInstruction("OP_GET_LOCAL_LONG", chunk, offset);
+    case OP_SET_LOCAL_LONG:
+      return shortInstruction("OP_SET_LOCAL_LONG", chunk, offset);
 //< Local Variables disassemble-local
 //> Global Variables disassemble-get-global
     case OP_GET_GLOBAL:

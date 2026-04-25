@@ -425,6 +425,10 @@ static InterpretResult run() {
 //> Global Variables read-string
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 //< Global Variables read-string
+
+#define READ_SHORT() \
+  (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+
 /* A Virtual Machine binary-op < Types of Values binary-op
 #define BINARY_OP(op) \
     do { \
@@ -505,6 +509,16 @@ static InterpretResult run() {
 //> Calls and Functions push-local
         push(frame->slots[slot]);
 //< Calls and Functions push-local
+        break;
+      }
+      case OP_GET_LOCAL_LONG: {
+        uint16_t slot = READ_SHORT();
+        push(frame->slots[slot]);
+        break;
+      }
+      case OP_SET_LOCAL_LONG: {
+        uint16_t slot = READ_SHORT();
+        frame->slots[slot] = peek(0);
         break;
       }
 //< Local Variables interpret-get-local

@@ -106,7 +106,9 @@ typedef struct Compiler {
   FunctionType type;
 
 //< Calls and Functions function-fields
-  Local locals[UINT8_COUNT];
+  // Local locals[UINT8_COUNT];
+  #define MAX_LOCALS 65536
+  Local locals[MAX_LOCALS];
   int localCount;
 //> Closures upvalues-array
   Upvalue upvalues[UINT8_COUNT];
@@ -518,7 +520,7 @@ static int resolveUpvalue(Compiler* compiler, Token* name) {
 //> Local Variables add-local
 static void addLocal(Token name) {
 //> too-many-locals
-  if (current->localCount == UINT8_COUNT) {
+  if (current->localCount == MAX_LOCALS) {
     error("Too many local variables in function.");
     return;
   }
@@ -739,60 +741,92 @@ static void string(bool canAssign) {
                                   parser.previous.length - 2)));
 }
 //< Strings parse-string
+
+static void emitLocalAccess(OpCode shortOp, OpCode longOp, int arg) {
+  if (arg <= UINT8_MAX) {
+    emitBytes(shortOp, (uint8_t)arg);
+  } else {
+    emitByte(longOp);
+    emitByte((arg >> 8) & 0xff);
+    emitByte(arg & 0xff);
+  }
+}
 /* Global Variables read-named-variable < Global Variables named-variable-signature
 static void namedVariable(Token name) {
 */
 //> Global Variables named-variable-signature
-static void namedVariable(Token name, bool canAssign) {
-//< Global Variables named-variable-signature
-/* Global Variables read-named-variable < Local Variables named-local
-  uint8_t arg = identifierConstant(&name);
-*/
-//> Global Variables read-named-variable
-//> Local Variables named-local
-  uint8_t getOp, setOp;
-  int arg = resolveLocal(current, &name);
-  if (arg != -1) {
-    getOp = OP_GET_LOCAL;
-    setOp = OP_SET_LOCAL;
-//> Closures named-variable-upvalue
-  } else if ((arg = resolveUpvalue(current, &name)) != -1) {
-    getOp = OP_GET_UPVALUE;
-    setOp = OP_SET_UPVALUE;
-//< Closures named-variable-upvalue
-  } else {
-    arg = identifierConstant(&name);
-    getOp = OP_GET_GLOBAL;
-    setOp = OP_SET_GLOBAL;
-  }
-//< Local Variables named-local
-/* Global Variables read-named-variable < Global Variables named-variable
-  emitBytes(OP_GET_GLOBAL, arg);
-*/
-//> named-variable
+// static void namedVariable(Token name, bool canAssign) {
+// //< Global Variables named-variable-signature
+// /* Global Variables read-named-variable < Local Variables named-local
+//   uint8_t arg = identifierConstant(&name);
+// */
+// //> Global Variables read-named-variable
+// //> Local Variables named-local
+//   uint8_t getOp, setOp;
+//   int arg = resolveLocal(current, &name);
+//   if (arg != -1) {
+//     getOp = OP_GET_LOCAL;
+//     setOp = OP_SET_LOCAL;
+// //> Closures named-variable-upvalue
+//   } else if ((arg = resolveUpvalue(current, &name)) != -1) {
+//     getOp = OP_GET_UPVALUE;
+//     setOp = OP_SET_UPVALUE;
+// //< Closures named-variable-upvalue
+//   } else {
+//     arg = identifierConstant(&name);
+//     getOp = OP_GET_GLOBAL;
+//     setOp = OP_SET_GLOBAL;
+//   }
+// //< Local Variables named-local
+// /* Global Variables read-named-variable < Global Variables named-variable
+//   emitBytes(OP_GET_GLOBAL, arg);
+// */
+// //> named-variable
 
-/* Global Variables named-variable < Global Variables named-variable-can-assign
-  if (match(TOKEN_EQUAL)) {
-*/
-//> named-variable-can-assign
-  if (canAssign && match(TOKEN_EQUAL)) {
-//< named-variable-can-assign
-    expression();
-/* Global Variables named-variable < Local Variables emit-set
-    emitBytes(OP_SET_GLOBAL, arg);
-*/
-//> Local Variables emit-set
-    emitBytes(setOp, (uint8_t)arg);
-//< Local Variables emit-set
-  } else {
-/* Global Variables named-variable < Local Variables emit-get
-    emitBytes(OP_GET_GLOBAL, arg);
-*/
-//> Local Variables emit-get
-    emitBytes(getOp, (uint8_t)arg);
-//< Local Variables emit-get
+// /* Global Variables named-variable < Global Variables named-variable-can-assign
+//   if (match(TOKEN_EQUAL)) {
+// */
+// //> named-variable-can-assign
+//   if (canAssign && match(TOKEN_EQUAL)) {
+// //< named-variable-can-assign
+//     expression();
+// /* Global Variables named-variable < Local Variables emit-set
+//     emitBytes(OP_SET_GLOBAL, arg);
+// */
+// //> Local Variables emit-set
+//     emitBytes(setOp, (uint8_t)arg);
+// //< Local Variables emit-set
+//   } else {
+// /* Global Variables named-variable < Local Variables emit-get
+//     emitBytes(OP_GET_GLOBAL, arg);
+// */
+// //> Local Variables emit-get
+//     emitBytes(getOp, (uint8_t)arg);
+// //< Local Variables emit-get
+//   }
+// //< named-variable
+// }
+static void namedVariable(Token name, bool canAssign) {
+  int arg = resolveLocal(current, &name);
+
+  if (arg != -1) {
+    if (canAssign && match(TOKEN_EQUAL)) {
+      expression();
+      emitLocalAccess(OP_SET_LOCAL, OP_SET_LOCAL_LONG, arg);
+    } else {
+      emitLocalAccess(OP_GET_LOCAL, OP_GET_LOCAL_LONG, arg);
+    }
+    return;
   }
-//< named-variable
+
+  arg = identifierConstant(&name);
+
+  if (canAssign && match(TOKEN_EQUAL)) {
+    expression();
+    emitBytes(OP_SET_GLOBAL, (uint8_t)arg);
+  } else {
+    emitBytes(OP_GET_GLOBAL, (uint8_t)arg);
+  }
 }
 //< Global Variables read-named-variable
 /* Global Variables variable-without-assign < Global Variables variable
