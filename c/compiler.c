@@ -21,6 +21,14 @@
 //< Compiling Expressions include-debug
 //> Compiling Expressions parser
 
+typedef struct Loop {
+  int continueTarget;
+  int scopeDepth;
+  struct Loop* enclosing;
+} Loop;
+
+static Loop* currentLoop = NULL;
+
 typedef struct {
   Token current;
   Token previous;
@@ -422,6 +430,8 @@ static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
 static void switchStatement();
+
+static void continueStatement();
 
 //< Compiling Expressions forward-declarations
 
@@ -1396,6 +1406,8 @@ static void forStatement() {
   }
 
 //< for-exit
+
+  int continueTarget = loopStart;
 /* Jumping Back and Forth for-statement < Jumping Back and Forth for-increment
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 */
@@ -1409,12 +1421,21 @@ static void forStatement() {
 
     emitLoop(loopStart);
     loopStart = incrementStart;
+    continueTarget = incrementStart;
     patchJump(bodyJump);
   }
 //< for-increment
 
+  Loop loop;
+  loop.continueTarget = continueTarget;
+  loop.scopeDepth = current->scopeDepth;
+  loop.enclosing = currentLoop;
+  currentLoop = &loop;
+
   statement();
   emitLoop(loopStart);
+
+  currentLoop = loop.enclosing;
 //> exit-jump
 
   if (exitJump != -1) {
@@ -1492,6 +1513,12 @@ static void whileStatement() {
 //> loop-start
   int loopStart = currentChunk()->count;
 //< loop-start
+  Loop loop;
+  loop.continueTarget = loopStart;
+  loop.scopeDepth = current->scopeDepth;
+  loop.enclosing = currentLoop;
+  currentLoop = &loop;
+
   consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
   expression();
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
@@ -1505,6 +1532,8 @@ static void whileStatement() {
 
   patchJump(exitJump);
   emitByte(OP_POP);
+
+  currentLoop = loop.enclosing;
 }
 //< Jumping Back and Forth while-statement
 //> Global Variables synchronize
@@ -1520,6 +1549,7 @@ static void synchronize() {
       case TOKEN_FOR:
       case TOKEN_IF:
       case TOKEN_WHILE:
+      case TOKEN_CONTINUE:
       case TOKEN_SWITCH:
       case TOKEN_CASE:
       case TOKEN_DEFAULT:
@@ -1588,6 +1618,8 @@ static void statement() {
     whileStatement();
 //< Jumping Back and Forth parse-while
 //> Local Variables parse-block
+  } else if (match(TOKEN_CONTINUE)) {
+    continueStatement();
   } else if (match(TOKEN_SWITCH)) {
     switchStatement();
   } else if (match(TOKEN_LEFT_BRACE)) {
@@ -1680,3 +1712,24 @@ void markCompilerRoots() {
   }
 }
 //< Garbage Collection mark-compiler-roots
+
+static void discardLocalsToDepth(int depth) {
+  while (current->localCount > 0 &&
+         current->locals[current->localCount - 1].depth > depth) {
+    emitByte(OP_POP);
+    current->localCount--;
+  }
+}
+
+static void continueStatement() {
+  if (currentLoop == NULL) {
+    error("Can't use 'continue' outside of a loop.");
+    consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+    return;
+  }
+
+  consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+
+  discardLocalsToDepth(currentLoop->scopeDepth);
+  emitLoop(currentLoop->continueTarget);
+}
