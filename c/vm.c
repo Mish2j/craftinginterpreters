@@ -426,9 +426,6 @@ static InterpretResult run() {
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 //< Global Variables read-string
 
-#define READ_SHORT() \
-  (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
-
 /* A Virtual Machine binary-op < Types of Values binary-op
 #define BINARY_OP(op) \
     do { \
