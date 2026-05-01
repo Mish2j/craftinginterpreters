@@ -28,8 +28,8 @@
 
 typedef struct {
 /* Calls and Functions call-frame < Closures call-frame-closure
-  ObjFunction* function;
 */
+  ObjFunction* function;
 //> Closures call-frame-closure
   ObjClosure* closure;
 //< Closures call-frame-closure

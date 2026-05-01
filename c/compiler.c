@@ -1233,13 +1233,20 @@ static void function(FunctionType type) {
   emitBytes(OP_CONSTANT, makeConstant(OBJ_VAL(function)));
 */
 //> Closures emit-closure
-  emitBytes(OP_CLOSURE, makeConstant(OBJ_VAL(function)));
+  // emitBytes(OP_CLOSURE, makeConstant(OBJ_VAL(function)));
 //< Closures emit-closure
 //> Closures capture-upvalues
 
-  for (int i = 0; i < function->upvalueCount; i++) {
-    emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
-    emitByte(compiler.upvalues[i].index);
+  if (function->upvalueCount == 0) {
+    emitBytes(OP_CONSTANT, makeConstant(OBJ_VAL(function)));
+  } else {
+    int constant = makeConstant(OBJ_VAL(function));
+    emitBytes(OP_CLOSURE, constant);
+
+    for (int i = 0; i < function->upvalueCount; i++) {
+      emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
+      emitByte(compiler.upvalues[i].index);
+    }
   }
 //< Closures capture-upvalues
 }
