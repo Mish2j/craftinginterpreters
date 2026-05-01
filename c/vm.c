@@ -24,13 +24,35 @@
 #include "memory.h"
 //< Strings vm-include-object-memory
 #include "vm.h"
+#include <math.h>
 
 VM vm; // [one]
 //> Calls and Functions clock-native
-static Value clockNative(int argCount, Value* args) {
-  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+static bool clockNative(int argCount, Value* args, Value* result) {
+  *result = NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+  return true;
 }
 //< Calls and Functions clock-native
+static bool sqrtNative(int argCount, Value* args, Value* result) {
+  if (argCount != 1) {
+    runtimeError("sqrt() expects 1 argument.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0])) {
+    runtimeError("sqrt() expects a number.");
+    return false;
+  }
+
+  double x = AS_NUMBER(args[0]);
+  if (x < 0) {
+    runtimeError("sqrt() cannot take a negative number.");
+    return false;
+  }
+
+  *result = NUMBER_VAL(sqrt(x));
+  return true;
+}
 //> reset-stack
 static void resetStack() {
   vm.stackTop = vm.stack;
@@ -129,6 +151,7 @@ void initVM() {
 //> Calls and Functions define-native-clock
 
   defineNative("clock", clockNative, 0);
+  defineNative("sqrt", sqrtNative, 1);
 //< Calls and Functions define-native-clock
 }
 
@@ -255,7 +278,11 @@ static bool callValue(Value callee, int argCount) {
           return false;
         }
 
-        Value result = native->function(argCount, vm.stackTop - argCount);
+        Value result;
+        if (!native->function(argCount, vm.stackTop - argCount, &result)) {
+          return false;
+        }
+
         vm.stackTop -= argCount + 1;
         push(result);
         return true;
