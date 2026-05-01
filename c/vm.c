@@ -53,6 +53,56 @@ static bool sqrtNative(int argCount, Value* args, Value* result) {
   *result = NUMBER_VAL(sqrt(x));
   return true;
 }
+
+static bool powNative(int argCount, Value* args, Value* result) {
+  if (argCount != 2) {
+    runtimeError("pow() expects 2 arguments.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("pow() expects numbers.");
+    return false;
+  }
+
+  *result = NUMBER_VAL(pow(AS_NUMBER(args[0]), AS_NUMBER(args[1])));
+  return true;
+}
+
+static bool minNative(int argCount, Value* args, Value* result) {
+  if (argCount != 2) {
+    runtimeError("min() expects 2 arguments.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("min() expects numbers.");
+    return false;
+  }
+
+  double a = AS_NUMBER(args[0]);
+  double b = AS_NUMBER(args[1]);
+  *result = NUMBER_VAL(a < b ? a : b);
+  return true;
+}
+
+static bool maxNative(int argCount, Value* args, Value* result) {
+  if (argCount != 2) {
+    runtimeError("max() expects 2 arguments.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("max() expects numbers.");
+    return false;
+  }
+
+  double a = AS_NUMBER(args[0]);
+  double b = AS_NUMBER(args[1]);
+  *result = NUMBER_VAL(a > b ? a : b);
+  return true;
+}
+
 //> reset-stack
 static void resetStack() {
   vm.stackTop = vm.stack;
@@ -152,6 +202,9 @@ void initVM() {
 
   defineNative("clock", clockNative, 0);
   defineNative("sqrt", sqrtNative, 1);
+  defineNative("pow", powNative, 2);
+  defineNative("min", minNative, 2);
+  defineNative("max", maxNative, 2);
 //< Calls and Functions define-native-clock
 }
 
