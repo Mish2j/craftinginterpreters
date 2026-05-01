@@ -1388,10 +1388,26 @@ static void forStatement() {
   consume(TOKEN_SEMICOLON, "Expect ';'.");
 */
 //> for-initializer
+  bool hasLoopVar = false;
+  Token loopVarName;
+  uint8_t loopVarSlot = 0;
+
   if (match(TOKEN_SEMICOLON)) {
     // No initializer.
   } else if (match(TOKEN_VAR)) {
-    varDeclaration();
+    uint8_t global = parseVariable("Expect variable name.");
+    loopVarName = parser.previous;
+
+    if (match(TOKEN_EQUAL)) {
+      expression();
+    } else {
+      emitByte(OP_NIL);
+    }
+    consume(TOKEN_SEMICOLON, "Expect ';' after loop initializer.");
+    defineVariable(global);
+
+    hasLoopVar = true;
+    loopVarSlot = (uint8_t)(current->localCount - 1);
   } else {
     expressionStatement();
   }
@@ -1414,7 +1430,7 @@ static void forStatement() {
 
 //< for-exit
 
-  int continueTarget = loopStart;
+  // int continueTarget = loopStart;
 /* Jumping Back and Forth for-statement < Jumping Back and Forth for-increment
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 */
@@ -1428,32 +1444,48 @@ static void forStatement() {
 
     emitLoop(loopStart);
     loopStart = incrementStart;
-    continueTarget = incrementStart;
+    // continueTarget = incrementStart;
     patchJump(bodyJump);
   }
 //< for-increment
 
-  Loop loop;
-  loop.continueTarget = continueTarget;
-  loop.scopeDepth = current->scopeDepth;
-  loop.enclosing = currentLoop;
-  currentLoop = &loop;
+  // Loop loop;
+  // loop.continueTarget = continueTarget;
+  // loop.scopeDepth = current->scopeDepth;
+  // loop.enclosing = currentLoop;
+  // currentLoop = &loop;
+
+  uint8_t iterationSlot = 0;
+  if (hasLoopVar) {
+    beginScope();
+
+    // Initialize fresh per-iteration variable from the outer loop variable.
+    emitBytes(OP_GET_LOCAL, loopVarSlot);
+    addLocal(loopVarName);
+    markInitialized();
+    iterationSlot = (uint8_t)(current->localCount - 1);
+  }
 
   statement();
-  emitLoop(loopStart);
 
-  currentLoop = loop.enclosing;
-//> exit-jump
+  if (hasLoopVar) {
+    // Copy body mutations back to the outer loop variable.
+    emitBytes(OP_GET_LOCAL, iterationSlot);
+    emitBytes(OP_SET_LOCAL, loopVarSlot);
+    emitByte(OP_POP);
+
+    endScope();
+  }
+
+  emitLoop(loopStart);
 
   if (exitJump != -1) {
     patchJump(exitJump);
     emitByte(OP_POP); // Condition.
   }
 
-//< exit-jump
-//> for-end-scope
+  // currentLoop = loop.enclosing;
   endScope();
-//< for-end-scope
 }
 //< Jumping Back and Forth for-statement
 //> Jumping Back and Forth if-statement
