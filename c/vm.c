@@ -26,6 +26,10 @@
 #include "vm.h"
 #include <math.h>
 
+static void runtimeError(const char* format, ...);
+static bool callFunction(ObjFunction* function, int argCount);
+static bool callClosure(ObjClosure* closure, int argCount);
+
 VM vm; // [one]
 //> Calls and Functions clock-native
 static bool clockNative(int argCount, Value* args, Value* result) {

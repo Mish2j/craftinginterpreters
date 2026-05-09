@@ -435,92 +435,7 @@ static void continueStatement();
 
 //< Compiling Expressions forward-declarations
 
-static void switchCaseBlock() {
-  while (!check(TOKEN_CASE) &&
-         !check(TOKEN_DEFAULT) &&
-         !check(TOKEN_RIGHT_BRACE) &&
-         !check(TOKEN_EOF)) {
-    declaration();
-  }
-}
 
-static void switchStatement() {
-  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'switch'.");
-  beginScope();
-
-  // Create a hidden local variable to store the switch value.
-  Local* local = &current->locals[current->localCount++];
-  local->name.start = "";
-  local->name.length = 0;
-  local->depth = -1;
-  local->isCaptured = false;
-
-  expression();
-  consume(TOKEN_RIGHT_PAREN, "Expect ')' after switch value.");
-
-  // Mark the hidden local initialized. The switch value is now stored there.
-  markInitialized();
-  int switchSlot = current->localCount - 1;
-
-  consume(TOKEN_LEFT_BRACE, "Expect '{' before switch cases.");
-
-  int endJumps[256];
-  int endJumpCount = 0;
-  bool seenDefault = false;
-
-  while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
-    if (match(TOKEN_CASE)) {
-      if (seenDefault) {
-        error("Can't have 'case' after 'default' in a switch.");
-      }
-
-      // Load the hidden switch value.
-      emitBytes(OP_GET_LOCAL, (uint8_t)switchSlot);
-
-      // Compile the case value expression.
-      expression();
-      consume(TOKEN_COLON, "Expect ':' after case value.");
-
-      // Compare switch value == case value.
-      emitByte(OP_EQUAL);
-
-      // If false, skip this case body.
-      int nextCase = emitJump(OP_JUMP_IF_FALSE);
-      emitByte(OP_POP); // Pop the true condition before executing the body.
-
-      switchCaseBlock();
-
-      // After a matching case finishes, jump to the end of the switch.
-      if (endJumpCount == 256) {
-        error("Too many case clauses in switch.");
-      }
-      endJumps[endJumpCount++] = emitJump(OP_JUMP);
-
-      // False path lands here.
-      patchJump(nextCase);
-      emitByte(OP_POP); // Pop the false condition.
-    } else if (match(TOKEN_DEFAULT)) {
-      if (seenDefault) {
-        error("Can't have more than one 'default' clause in a switch.");
-      }
-      seenDefault = true;
-
-      consume(TOKEN_COLON, "Expect ':' after 'default'.");
-      switchCaseBlock();
-    } else {
-      error("Expect 'case' or 'default' in switch.");
-      advance();
-    }
-  }
-
-  consume(TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
-
-  for (int i = 0; i < endJumpCount; i++) {
-    patchJump(endJumps[i]);
-  }
-
-  endScope();
-}
 
 //> Global Variables identifier-constant
 static uint8_t identifierConstant(Token* name) {
@@ -674,7 +589,7 @@ static uint8_t parseVariable(const char* errorMessage) {
 }
 //< Global Variables parse-variable
 //> Local Variables mark-initialized
-static void markInitialized() {
+static void markInitialized(void) {
 //> Calls and Functions check-depth
   if (current->scopeDepth == 0) return;
 //< Calls and Functions check-depth
@@ -1771,4 +1686,93 @@ static void continueStatement() {
 
   discardLocalsToDepth(currentLoop->scopeDepth);
   emitLoop(currentLoop->continueTarget);
+}
+
+static void switchCaseBlock() {
+    while (!check(TOKEN_CASE) &&
+        !check(TOKEN_DEFAULT) &&
+        !check(TOKEN_RIGHT_BRACE) &&
+        !check(TOKEN_EOF)) {
+        declaration();
+    }
+}
+
+static void switchStatement() {
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after 'switch'.");
+    beginScope();
+
+    // Create a hidden local variable to store the switch value.
+    Local* local = &current->locals[current->localCount++];
+    local->name.start = "";
+    local->name.length = 0;
+    local->depth = -1;
+    local->isCaptured = false;
+
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after switch value.");
+
+    // Mark the hidden local initialized. The switch value is now stored there.
+    markInitialized();
+    int switchSlot = current->localCount - 1;
+
+    consume(TOKEN_LEFT_BRACE, "Expect '{' before switch cases.");
+
+    int endJumps[256];
+    int endJumpCount = 0;
+    bool seenDefault = false;
+
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+        if (match(TOKEN_CASE)) {
+            if (seenDefault) {
+                error("Can't have 'case' after 'default' in a switch.");
+            }
+
+            // Load the hidden switch value.
+            emitBytes(OP_GET_LOCAL, (uint8_t)switchSlot);
+
+            // Compile the case value expression.
+            expression();
+            consume(TOKEN_COLON, "Expect ':' after case value.");
+
+            // Compare switch value == case value.
+            emitByte(OP_EQUAL);
+
+            // If false, skip this case body.
+            int nextCase = emitJump(OP_JUMP_IF_FALSE);
+            emitByte(OP_POP); // Pop the true condition before executing the body.
+
+            switchCaseBlock();
+
+            // After a matching case finishes, jump to the end of the switch.
+            if (endJumpCount == 256) {
+                error("Too many case clauses in switch.");
+            }
+            endJumps[endJumpCount++] = emitJump(OP_JUMP);
+
+            // False path lands here.
+            patchJump(nextCase);
+            emitByte(OP_POP); // Pop the false condition.
+        }
+        else if (match(TOKEN_DEFAULT)) {
+            if (seenDefault) {
+                error("Can't have more than one 'default' clause in a switch.");
+            }
+            seenDefault = true;
+
+            consume(TOKEN_COLON, "Expect ':' after 'default'.");
+            switchCaseBlock();
+        }
+        else {
+            error("Expect 'case' or 'default' in switch.");
+            advance();
+        }
+    }
+
+    consume(TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
+
+    for (int i = 0; i < endJumpCount; i++) {
+        patchJump(endJumps[i]);
+    }
+
+    endScope();
 }
