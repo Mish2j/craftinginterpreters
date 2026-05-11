@@ -304,16 +304,12 @@ static bool callValue(Value callee, int argCount) {
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
 //> Methods and Initializers call-init
         Value initializer;
-        if (tableGet(&klass->methods, OBJ_VAL(vm.initString),
-                     &initializer)) {
-          return call(AS_CLOSURE(initializer), argCount);
-//> no-init-arity-error
-        } else if (argCount != 0) {
-          runtimeError("Expected 0 arguments but got %d.",
-                       argCount);
-          return false;
-//< no-init-arity-error
-        }
+       if (klass->initializer != NULL) {
+        return call(klass->initializer, argCount);
+      } else if (argCount != 0) {
+        runtimeError("Expected 0 arguments but got %d.", argCount);
+        return false;
+      }
 //< Methods and Initializers call-init
         return true;
       }
@@ -447,7 +443,12 @@ static void closeUpvalues(Value* last) {
 static void defineMethod(ObjString* name) {
   Value method = peek(0);
   ObjClass* klass = AS_CLASS(peek(1));
-  tableSet(&klass->methods, OBJ_VAL(name), method);
+  tableSet(&klass->methods, name, method);
+
+   if (name == vm.initString) {
+    klass->initializer = AS_CLOSURE(method);
+  }
+
   pop();
 }
 //< Methods and Initializers define-method
