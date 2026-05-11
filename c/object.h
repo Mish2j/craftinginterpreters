@@ -157,6 +157,7 @@ typedef struct {
   Obj obj;
   ObjString* name;
 //> Methods and Initializers class-methods
+  ObjClosure* initializer;
   Table methods;
 //< Methods and Initializers class-methods
 } ObjClass;
