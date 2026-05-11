@@ -27,6 +27,18 @@ static int constantInstruction(const char* name, Chunk* chunk,
   return offset + 2;
 //< return-after-operand
 }
+
+static int constantLongInstruction(const char* name, Chunk* chunk, int offset) {
+  uint32_t constant = ((uint32_t)chunk->code[offset + 1] << 16) |
+                      ((uint32_t)chunk->code[offset + 2] << 8) |
+                      (uint32_t)chunk->code[offset + 3];
+
+  printf("%-16s %4d '", name, constant);
+  printValue(chunk->constants.values[constant]);
+  printf("'\n");
+  return offset + 4;
+}
+
 //< constant-instruction
 //> Methods and Initializers invoke-instruction
 static int invokeInstruction(const char* name, Chunk* chunk,
@@ -53,6 +65,12 @@ static int byteInstruction(const char* name, Chunk* chunk,
   return offset + 2; // [debug]
 }
 //< Local Variables byte-instruction
+static int shortInstruction(const char* name, Chunk* chunk, int offset) {
+  uint16_t slot = (uint16_t)((chunk->code[offset + 1] << 8) |
+                             chunk->code[offset + 2]);
+  printf("%-16s %4d\n", name, slot);
+  return offset + 3;
+}
 //> Jumping Back and Forth jump-instruction
 static int jumpInstruction(const char* name, int sign,
                            Chunk* chunk, int offset) {
@@ -67,11 +85,10 @@ static int jumpInstruction(const char* name, int sign,
 int disassembleInstruction(Chunk* chunk, int offset) {
   printf("%04d ", offset);
 //> show-location
-  if (offset > 0 &&
-      chunk->lines[offset] == chunk->lines[offset - 1]) {
+  if (offset > 0 && getLine(chunk, offset) == getLine(chunk, offset - 1)) {
     printf("   | ");
   } else {
-    printf("%4d ", chunk->lines[offset]);
+    printf("%4d ", getLine(chunk, offset));
   }
 //< show-location
   
@@ -80,6 +97,8 @@ int disassembleInstruction(Chunk* chunk, int offset) {
 //> disassemble-constant
     case OP_CONSTANT:
       return constantInstruction("OP_CONSTANT", chunk, offset);
+    case OP_CONSTANT_LONG:
+      return constantLongInstruction("OP_CONSTANT_LONG", chunk, offset);
 //< disassemble-constant
 //> Types of Values disassemble-literals
     case OP_NIL:
@@ -98,6 +117,10 @@ int disassembleInstruction(Chunk* chunk, int offset) {
       return byteInstruction("OP_GET_LOCAL", chunk, offset);
     case OP_SET_LOCAL:
       return byteInstruction("OP_SET_LOCAL", chunk, offset);
+    case OP_GET_LOCAL_LONG:
+      return shortInstruction("OP_GET_LOCAL_LONG", chunk, offset);
+    case OP_SET_LOCAL_LONG:
+      return shortInstruction("OP_SET_LOCAL_LONG", chunk, offset);
 //< Local Variables disassemble-local
 //> Global Variables disassemble-get-global
     case OP_GET_GLOBAL:

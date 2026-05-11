@@ -6,6 +6,7 @@ import java.util.ArrayList;
 //< Statements and State parser-imports
 //> Control Flow import-arrays
 import java.util.Arrays;
+import java.util.Collections;
 //< Control Flow import-arrays
 import java.util.List;
 
@@ -18,10 +19,18 @@ class Parser {
 //< parse-error
   private final List<Token> tokens;
   private int current = 0;
+  private final boolean repl;
+  private int loopDepth = 0;
 
   Parser(List<Token> tokens) {
-    this.tokens = tokens;
+    this(tokens, false);
   }
+
+  Parser(List<Token> tokens, boolean repl) {
+    this.tokens = tokens;
+    this.repl = repl;
+  }
+
 /* Parsing Expressions parse < Statements and State parse
   Expr parse() {
     try {
@@ -46,13 +55,27 @@ class Parser {
     return statements; // [parse-error-handling]
   }
 //< Statements and State parse
+
+private Expr comma() {
+  Expr expr = assignment();
+
+  while (match(COMMA)) {
+    Token operator = previous();
+    Expr right = assignment();
+    expr = new Expr.Binary(expr, operator, right);
+  }
+
+  return expr;
+}
+
+
 //> expression
   private Expr expression() {
 /* Parsing Expressions expression < Statements and State expression
     return equality();
 */
 //> Statements and State expression
-    return assignment();
+    return comma();
 //< Statements and State expression
   }
 //< expression
@@ -73,6 +96,33 @@ class Parser {
       return null;
     }
   }
+
+  private Stmt.Function classMember(String kind) {
+    Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+    if (match(LEFT_PAREN)) {
+      List<Token> parameters = new ArrayList<>();
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(
+              consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+      consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+      List<Stmt> body = block();
+      return new Stmt.Function(name, parameters, body, false);
+    }
+
+    consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+    List<Stmt> body = block();
+    return new Stmt.Function(name, Collections.emptyList(), body, true);
+  }
+
 //< Statements and State declaration
 //> Classes parse-class-declaration
   private Stmt classDeclaration() {
@@ -86,11 +136,18 @@ class Parser {
     }
 
 //< Inheritance parse-superclass
-    consume(LEFT_BRACE, "Expect '{' before class body.");
+    consume(LEFT_BRACE, "Expect '{' before class body.");  
 
     List<Stmt.Function> methods = new ArrayList<>();
+    List<Stmt.Function> classMethods = new ArrayList<>();
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
-      methods.add(function("method"));
+      boolean isClassMethod = match(CLASS);
+      Stmt.Function member = classMember("method");
+      if (isClassMethod) {
+        classMethods.add(member);
+      } else {
+        methods.add(member);
+      }
     }
 
     consume(RIGHT_BRACE, "Expect '}' after class body.");
@@ -99,7 +156,7 @@ class Parser {
     return new Stmt.Class(name, methods);
 */
 //> Inheritance construct-class-ast
-    return new Stmt.Class(name, superclass, methods);
+    return new Stmt.Class(name, superclass, methods, classMethods);
 //< Inheritance construct-class-ast
   }
 //< Classes parse-class-declaration
@@ -121,6 +178,7 @@ class Parser {
 //> parse-block
     if (match(LEFT_BRACE)) return new Stmt.Block(block());
 //< parse-block
+    if (match(BREAK)) return breakStatement();
 
     return expressionStatement();
   }
@@ -159,7 +217,13 @@ class Parser {
     consume(RIGHT_PAREN, "Expect ')' after for clauses.");
 //< for-increment
 //> for-body
-    Stmt body = statement();
+    loopDepth++;
+    Stmt body;
+    try {
+      body = statement();
+    } finally {
+      loopDepth--;
+    }
 
 //> for-desugar-increment
     if (increment != null) {
@@ -237,41 +301,56 @@ class Parser {
     consume(LEFT_PAREN, "Expect '(' after 'while'.");
     Expr condition = expression();
     consume(RIGHT_PAREN, "Expect ')' after condition.");
-    Stmt body = statement();
+    
+    loopDepth++;
+    Stmt body;
+    try {
+      body = statement();
+    } finally {
+      loopDepth--;
+    }
 
     return new Stmt.While(condition, body);
   }
 //< Control Flow while-statement
 //> Statements and State parse-expression-statement
   private Stmt expressionStatement() {
-    Expr expr = expression();
-    consume(SEMICOLON, "Expect ';' after expression.");
-    return new Stmt.Expression(expr);
-  }
+  Expr expr = expression();
+
+  if (match(SEMICOLON)) return new Stmt.Expression(expr);
+
+  if (repl && isAtEnd()) return new Stmt.Print(expr);
+
+  consume(SEMICOLON, "Expect ';' after expression.");
+  return null; 
+}
 //< Statements and State parse-expression-statement
 //> Functions parse-function
   private Stmt.Function function(String kind) {
     Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
 //> parse-parameters
-    consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
-    List<Token> parameters = new ArrayList<>();
-    if (!check(RIGHT_PAREN)) {
-      do {
-        if (parameters.size() >= 255) {
-          error(peek(), "Can't have more than 255 parameters.");
-        }
+     if (match(LEFT_PAREN)) {
+      List<Token> parameters = new ArrayList<>();
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+      consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
 
-        parameters.add(
-            consume(IDENTIFIER, "Expect parameter name."));
-      } while (match(COMMA));
+      List<Stmt> body = block();
+      return new Stmt.Function(name, parameters, body, false);
     }
-    consume(RIGHT_PAREN, "Expect ')' after parameters.");
 //< parse-parameters
 //> parse-body
 
     consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
     List<Stmt> body = block();
-    return new Stmt.Function(name, parameters, body);
+     return new Stmt.Function(name, Collections.emptyList(), body, true);
 //< parse-body
   }
 //< Functions parse-function
@@ -293,7 +372,7 @@ class Parser {
     Expr expr = equality();
 */
 //> Control Flow or-in-assignment
-    Expr expr = or();
+    Expr expr = conditional();
 //< Control Flow or-in-assignment
 
     if (match(EQUAL)) {
@@ -316,6 +395,21 @@ class Parser {
     return expr;
   }
 //< Statements and State parse-assignment
+
+  private Expr conditional() {
+    Expr expr = equality();
+
+    if (match(QUESTION)) {
+      Expr thenBranch = expression();
+      consume(COLON,
+          "Expect ':' after then branch of conditional expression.");
+      Expr elseBranch = conditional();
+      expr = new Expr.Conditional(expr, thenBranch, elseBranch);
+    }
+
+    return expr;
+  }
+
 //> Control Flow or
   private Expr or() {
     Expr expr = and();
@@ -420,7 +514,7 @@ class Parser {
           error(peek(), "Can't have more than 255 arguments.");
         }
 //< check-max-arity
-        arguments.add(expression());
+        arguments.add(assignment());
       } while (match(COMMA));
     }
 
@@ -452,45 +546,53 @@ class Parser {
   }
 //< Functions call
 //> primary
-  private Expr primary() {
-    if (match(FALSE)) return new Expr.Literal(false);
-    if (match(TRUE)) return new Expr.Literal(true);
-    if (match(NIL)) return new Expr.Literal(null);
+ private Expr primary() {
+      if (match(THIS)) return new Expr.This(previous());
+      if (match(FALSE)) return new Expr.Literal(false);
+      if (match(TRUE)) return new Expr.Literal(true);
+      if (match(NIL)) return new Expr.Literal(null);
 
-    if (match(NUMBER, STRING)) {
-      return new Expr.Literal(previous().literal);
+      if (match(NUMBER, STRING)) {
+        return new Expr.Literal(previous().literal);
+      }
+
+      if (match(IDENTIFIER)) {
+        return new Expr.Variable(previous());
+      }
+
+      if (match(LEFT_PAREN)) {
+        Expr expr = expression();
+        consume(RIGHT_PAREN, "Expect ')' after expression.");
+        return new Expr.Grouping(expr);
+      }
+
+      // Error productions.
+      if (match(BANG_EQUAL, EQUAL_EQUAL)) {
+        error(previous(), "Missing left-hand operand.");
+        equality();
+        return null;
+      }
+
+      if (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
+        error(previous(), "Missing left-hand operand.");
+        comparison();
+        return null;
+      }
+
+      if (match(PLUS)) {
+        error(previous(), "Missing left-hand operand.");
+        term();
+        return null;
+      }
+
+      if (match(SLASH, STAR)) {
+        error(previous(), "Missing left-hand operand.");
+        factor();
+        return null;
+      }
+
+      throw error(peek(), "Expect expression.");
     }
-//> Inheritance parse-super
-
-    if (match(SUPER)) {
-      Token keyword = previous();
-      consume(DOT, "Expect '.' after 'super'.");
-      Token method = consume(IDENTIFIER,
-          "Expect superclass method name.");
-      return new Expr.Super(keyword, method);
-    }
-//< Inheritance parse-super
-//> Classes parse-this
-
-    if (match(THIS)) return new Expr.This(previous());
-//< Classes parse-this
-//> Statements and State parse-identifier
-
-    if (match(IDENTIFIER)) {
-      return new Expr.Variable(previous());
-    }
-//< Statements and State parse-identifier
-
-    if (match(LEFT_PAREN)) {
-      Expr expr = expression();
-      consume(RIGHT_PAREN, "Expect ')' after expression.");
-      return new Expr.Grouping(expr);
-    }
-//> primary-error
-
-    throw error(peek(), "Expect expression.");
-//< primary-error
-  }
 //< primary
 //> match
   private boolean match(TokenType... types) {
@@ -565,4 +667,16 @@ class Parser {
     }
   }
 //< synchronize
+
+  private Stmt breakStatement() {
+    Token keyword = previous();
+
+    if (loopDepth == 0) {
+      error(keyword, "Can't use 'break' outside of a loop.");
+    }
+
+    consume(SEMICOLON, "Expect ';' after 'break'.");
+    return new Stmt.Break(keyword);
+  }
+
 }

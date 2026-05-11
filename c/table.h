@@ -6,9 +6,16 @@
 #include "value.h"
 //> entry
 
+typedef enum {
+  ENTRY_EMPTY,
+  ENTRY_TOMBSTONE,
+  ENTRY_OCCUPIED
+} EntryState;
+
 typedef struct {
-  ObjString* key;
+  Value key;
   Value value;
+  EntryState state;
 } Entry;
 //< entry
 
@@ -24,13 +31,13 @@ void initTable(Table* table);
 void freeTable(Table* table);
 //< free-table-h
 //> table-get-h
-bool tableGet(Table* table, ObjString* key, Value* value);
+bool tableGet(Table* table, Value key, Value* value);
 //< table-get-h
 //> table-set-h
-bool tableSet(Table* table, ObjString* key, Value value);
+bool tableSet(Table* table, Value key, Value value);
 //< table-set-h
 //> table-delete-h
-bool tableDelete(Table* table, ObjString* key);
+bool tableDelete(Table* table, Value key);
 //< table-delete-h
 //> table-add-all-h
 void tableAddAll(Table* from, Table* to);

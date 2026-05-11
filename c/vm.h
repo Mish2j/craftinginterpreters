@@ -22,14 +22,14 @@
 */
 //> Calls and Functions frame-max
 #define FRAMES_MAX 64
-#define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
+#define STACK_MAX (FRAMES_MAX * 1024)
 //< Calls and Functions frame-max
 //> Calls and Functions call-frame
 
 typedef struct {
 /* Calls and Functions call-frame < Closures call-frame-closure
-  ObjFunction* function;
 */
+  ObjFunction* function;
 //> Closures call-frame-closure
   ObjClosure* closure;
 //< Closures call-frame-closure

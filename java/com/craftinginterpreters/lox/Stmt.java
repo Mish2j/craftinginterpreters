@@ -14,6 +14,7 @@ abstract class Stmt {
     R visitReturnStmt(Return stmt);
     R visitVarStmt(Var stmt);
     R visitWhileStmt(While stmt);
+    R visitBreakStmt(Break stmt);
   }
 
   // Nested Stmt classes here...
@@ -33,12 +34,13 @@ abstract class Stmt {
 //< stmt-block
 //> stmt-class
   static class Class extends Stmt {
-    Class(Token name,
-          Expr.Variable superclass,
-          List<Stmt.Function> methods) {
+    Class(Token name, Expr.Variable superclass,
+    List<Stmt.Function> methods,
+    List<Stmt.Function> classMethods) {
       this.name = name;
       this.superclass = superclass;
       this.methods = methods;
+      this.classMethods = classMethods;
     }
 
     @Override
@@ -49,6 +51,7 @@ abstract class Stmt {
     final Token name;
     final Expr.Variable superclass;
     final List<Stmt.Function> methods;
+    final List<Stmt.Function> classMethods;
   }
 //< stmt-class
 //> stmt-expression
@@ -67,10 +70,11 @@ abstract class Stmt {
 //< stmt-expression
 //> stmt-function
   static class Function extends Stmt {
-    Function(Token name, List<Token> params, List<Stmt> body) {
+    Function(Token name, List<Token> params, List<Stmt> body, boolean isGetter) {
       this.name = name;
       this.params = params;
       this.body = body;
+      this.isGetter = isGetter;
     }
 
     @Override
@@ -81,6 +85,7 @@ abstract class Stmt {
     final Token name;
     final List<Token> params;
     final List<Stmt> body;
+    final boolean isGetter;
   }
 //< stmt-function
 //> stmt-if
@@ -163,6 +168,16 @@ abstract class Stmt {
     final Stmt body;
   }
 //< stmt-while
+
+  static class Break extends Stmt {
+    final Token keyword;
+    Break(Token keyword) { this.keyword = keyword; }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitBreakStmt(this);
+    }
+  }
 
   abstract <R> R accept(Visitor<R> visitor);
 }

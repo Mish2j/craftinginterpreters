@@ -17,9 +17,28 @@ abstract class Expr {
     R visitThisExpr(This expr);
     R visitUnaryExpr(Unary expr);
     R visitVariableExpr(Variable expr);
+    R visitConditionalExpr(Conditional expr);
   }
 
   // Nested Expr classes here...
+
+  static class Conditional extends Expr {
+  Conditional(Expr condition, Expr thenBranch, Expr elseBranch) {
+    this.condition = condition;
+    this.thenBranch = thenBranch;
+    this.elseBranch = elseBranch;
+  }
+
+  @Override
+  <R> R accept(Visitor<R> visitor) {
+    return visitor.visitConditionalExpr(this);
+  }
+
+  final Expr condition;
+  final Expr thenBranch;
+  final Expr elseBranch;
+}
+
 //> expr-assign
   static class Assign extends Expr {
     Assign(Token name, Expr value) {

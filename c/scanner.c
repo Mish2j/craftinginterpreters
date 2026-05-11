@@ -129,7 +129,15 @@ static TokenType identifierType() {
 //> keywords
   switch (scanner.start[0]) {
     case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
-    case 'c': return checkKeyword(1, 4, "lass", TOKEN_CLASS);
+    case 'c':
+      if (scanner.current - scanner.start > 1) {
+        switch (scanner.start[1]) {
+          case 'a': return checkKeyword(2, 2, "se", TOKEN_CASE);
+          case 'l': return checkKeyword(2, 3, "ass", TOKEN_CLASS);
+          case 'o': return checkKeyword(2, 6, "ntinue", TOKEN_CONTINUE);
+        }
+      }
+      break;
     case 'e': return checkKeyword(1, 3, "lse", TOKEN_ELSE);
 //> keyword-f
     case 'f':
@@ -147,7 +155,20 @@ static TokenType identifierType() {
     case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
     case 'p': return checkKeyword(1, 4, "rint", TOKEN_PRINT);
     case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
-    case 's': return checkKeyword(1, 4, "uper", TOKEN_SUPER);
+    case 's':
+    if (scanner.current - scanner.start > 1) {
+      switch (scanner.start[1]) {
+        case 'u':
+          if (scanner.current - scanner.start > 2) {
+            switch (scanner.start[2]) {
+              case 'p': return checkKeyword(3, 2, "er", TOKEN_SUPER);
+              case 'i': return checkKeyword(3, 3, "tch", TOKEN_SWITCH);
+            }
+          }
+          break;
+      }
+    }
+    break;
 //> keyword-t
     case 't':
       if (scanner.current - scanner.start > 1) {
@@ -225,6 +246,7 @@ Token scanToken() {
     case '{': return makeToken(TOKEN_LEFT_BRACE);
     case '}': return makeToken(TOKEN_RIGHT_BRACE);
     case ';': return makeToken(TOKEN_SEMICOLON);
+    case ':': return makeToken(TOKEN_COLON);
     case ',': return makeToken(TOKEN_COMMA);
     case '.': return makeToken(TOKEN_DOT);
     case '-': return makeToken(TOKEN_MINUS);

@@ -11,6 +11,7 @@
 typedef enum {
 //> op-constant
   OP_CONSTANT,
+  OP_CONSTANT_LONG,
 //< op-constant
 //> Types of Values literal-ops
   OP_NIL,
@@ -22,9 +23,11 @@ typedef enum {
 //< Global Variables pop-op
 //> Local Variables get-local-op
   OP_GET_LOCAL,
+  OP_GET_LOCAL_LONG,
 //< Local Variables get-local-op
 //> Local Variables set-local-op
   OP_SET_LOCAL,
+  OP_SET_LOCAL_LONG,
 //< Local Variables set-local-op
 //> Global Variables get-global-op
   OP_GET_GLOBAL,
@@ -105,13 +108,20 @@ typedef enum {
 //> chunk-struct
 
 typedef struct {
+  int line;
+  int count;
+} LineRun;
+
+typedef struct {
 //> count-and-capacity
   int count;
   int capacity;
 //< count-and-capacity
   uint8_t* code;
 //> chunk-lines
-  int* lines;
+  int linesCount;
+  int linesCapacity;
+  LineRun* lines;
 //< chunk-lines
 //> chunk-constants
   ValueArray constants;
@@ -134,5 +144,6 @@ void writeChunk(Chunk* chunk, uint8_t byte, int line);
 //> add-constant-h
 int addConstant(Chunk* chunk, Value value);
 //< add-constant-h
-
+int getLine(Chunk* chunk, int instruction);
+void writeConstant(Chunk* chunk, Value value, int line);
 #endif

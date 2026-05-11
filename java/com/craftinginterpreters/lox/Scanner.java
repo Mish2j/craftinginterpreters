@@ -30,6 +30,7 @@ class Scanner {
     keywords.put("true",   TRUE);
     keywords.put("var",    VAR);
     keywords.put("while",  WHILE);
+    keywords.put("break", BREAK);
   }
 //< keyword-map
   private final String source;
@@ -59,6 +60,8 @@ class Scanner {
   private void scanToken() {
     char c = advance();
     switch (c) {
+      case '?': addToken(QUESTION); break;
+      case ':': addToken(COLON); break;
       case '(': addToken(LEFT_PAREN); break;
       case ')': addToken(RIGHT_PAREN); break;
       case '{': addToken(LEFT_BRACE); break;
@@ -88,13 +91,27 @@ class Scanner {
         if (match('/')) {
           // A comment goes until the end of the line.
           while (peek() != '\n' && !isAtEnd()) advance();
+
+          // support C-style /* ... */ block comments
+        } else if(match('*')) {
+          while (!isAtEnd()) {
+            if (peek() == '\n') line++;
+
+            if (peek() == '*' && peekNext() == '/') {
+              advance();
+              advance();
+              break;
+            }
+
+            advance();
+          }
+
         } else {
           addToken(SLASH);
         }
         break;
 //< slash
 //> whitespace
-
       case ' ':
       case '\r':
       case '\t':

@@ -54,8 +54,7 @@
 #define AS_INSTANCE(value)     ((ObjInstance*)AS_OBJ(value))
 //< Classes and Instances as-instance
 //> Calls and Functions as-native
-#define AS_NATIVE(value) \
-    (((ObjNative*)AS_OBJ(value))->function)
+#define AS_NATIVE(value) ((ObjNative*)AS_OBJ(value))
 //< Calls and Functions as-native
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
@@ -111,10 +110,11 @@ typedef struct {
 //< Calls and Functions obj-function
 //> Calls and Functions obj-native
 
-typedef Value (*NativeFn)(int argCount, Value* args);
+typedef bool (*NativeFn)(int argCount, Value* args, Value* result);
 
 typedef struct {
   Obj obj;
+  int arity;
   NativeFn function;
 } ObjNative;
 //< Calls and Functions obj-native
@@ -123,10 +123,11 @@ typedef struct {
 struct ObjString {
   Obj obj;
   int length;
-  char* chars;
 //> Hash Tables obj-string-hash
   uint32_t hash;
 //< Hash Tables obj-string-hash
+  bool isOwned;
+  char* chars;
 };
 //< obj-string
 //> Closures obj-upvalue
@@ -196,7 +197,7 @@ ObjFunction* newFunction();
 ObjInstance* newInstance(ObjClass* klass);
 //< Classes and Instances new-instance-h
 //> Calls and Functions new-native-h
-ObjNative* newNative(NativeFn function);
+ObjNative* newNative(NativeFn function, int arity);
 //< Calls and Functions new-native-h
 //> take-string-h
 ObjString* takeString(char* chars, int length);
