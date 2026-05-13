@@ -88,6 +88,12 @@ typedef enum {
 } ObjType;
 //< obj-type
 
+typedef struct Obj Obj;
+typedef struct ObjString ObjString;
+typedef struct ObjUpvalue ObjUpvalue;
+typedef struct ObjClass ObjClass;
+typedef struct ObjClosure ObjClosure;
+
 struct Obj {
   ObjType type;
 //> Garbage Collection is-marked-field
@@ -130,7 +136,7 @@ struct ObjString {
 };
 //< obj-string
 //> Closures obj-upvalue
-typedef struct ObjUpvalue {
+struct ObjUpvalue {
   Obj obj;
   Value* location;
 //> closed-field
@@ -139,10 +145,10 @@ typedef struct ObjUpvalue {
 //> next-field
   struct ObjUpvalue* next;
 //< next-field
-} ObjUpvalue;
+};
 //< Closures obj-upvalue
 //> Closures obj-closure
-typedef struct {
+struct ObjClosure{
   Obj obj;
   ObjFunction* function;
 //> upvalue-fields
@@ -151,18 +157,18 @@ typedef struct {
 //< upvalue-fields
   ObjClass* owner;
   ObjString* methodName;
-} ObjClosure;
+};
 //< Closures obj-closure
 //> Classes and Instances obj-class
 
-typedef struct {
+struct ObjClass{
   Obj obj;
   ObjString* name;
   struct ObjClass* superclass;
 //> Methods and Initializers class-methods
   Table methods;
 //< Methods and Initializers class-methods
-} ObjClass;
+};
 //< Classes and Instances obj-class
 //> Classes and Instances obj-instance
 

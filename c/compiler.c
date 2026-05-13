@@ -822,9 +822,6 @@ static void super_(bool canAssign) {
 static void inner_(bool canAssign) {
   if (currentClass == NULL) {
     error("Can't use 'inner' outside of a class.");
-  } else if (current->type != TYPE_METHOD &&
-             current->type != TYPE_INITIALIZER) {
-    error("Can't use 'inner' outside of a method.");
   }
 
   namedVariable(syntheticToken("this"), false);
