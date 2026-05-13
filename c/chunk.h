@@ -84,6 +84,7 @@ typedef enum {
 //> Superclasses super-invoke-op
   OP_SUPER_INVOKE,
 //< Superclasses super-invoke-op
+  OP_INNER,
 //> Closures closure-op
   OP_CLOSURE,
 //< Closures closure-op

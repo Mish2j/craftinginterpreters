@@ -149,6 +149,8 @@ typedef struct {
   ObjUpvalue** upvalues;
   int upvalueCount;
 //< upvalue-fields
+  ObjClass* owner;
+  ObjString* methodName;
 } ObjClosure;
 //< Closures obj-closure
 //> Classes and Instances obj-class
@@ -156,6 +158,7 @@ typedef struct {
 typedef struct {
   Obj obj;
   ObjString* name;
+  struct ObjClass* superclass;
 //> Methods and Initializers class-methods
   Table methods;
 //< Methods and Initializers class-methods

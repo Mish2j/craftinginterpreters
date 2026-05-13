@@ -116,6 +116,7 @@ static void blackenObject(Obj* object) {
     case OBJ_CLASS: {
       ObjClass* klass = (ObjClass*)object;
       markObject((Obj*)klass->name);
+      markObject((Obj*)klass->superclass);
 //> Methods and Initializers mark-methods
       markTable(&klass->methods);
 //< Methods and Initializers mark-methods
@@ -126,6 +127,8 @@ static void blackenObject(Obj* object) {
     case OBJ_CLOSURE: {
       ObjClosure* closure = (ObjClosure*)object;
       markObject((Obj*)closure->function);
+      markObject((Obj*)closure->owner);
+      markObject((Obj*)closure->methodName);
       for (int i = 0; i < closure->upvalueCount; i++) {
         markObject((Obj*)closure->upvalues[i]);
       }
