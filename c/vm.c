@@ -165,7 +165,7 @@ static void runtimeError(const char* format, ...) {
 static void defineNative(const char* name, NativeFn function, int arity) {
     push(OBJ_VAL(copyString(name, (int)strlen(name))));
     push(OBJ_VAL(newNative(function, arity)));
-    tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+    tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
     pop();
     pop();
 }
@@ -254,7 +254,7 @@ static bool findTopMethod(ObjClass* klass, ObjString* name,
   for (ObjClass* current = klass; current != NULL;
        current = current->superclass) {
     Value value;
-    if (tableGet(&current->methods, name, &value)) {
+    if (tableGet(&current->methods, OBJ_VAL(name), &value)) {
       found = AS_CLOSURE(value);
     }
   }
@@ -272,7 +272,7 @@ static bool findInnerMethod(ObjClass* owner, ObjClass* receiverClass,
        current != NULL && current != owner;
        current = current->superclass) {
     Value value;
-    if (tableGet(&current->methods, name, &value)) {
+    if (tableGet(&current->methods, OBJ_VAL(name), &value)) {
       found = AS_CLOSURE(value);
     }
   }
@@ -340,8 +340,8 @@ static bool callValue(Value callee, int argCount) {
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
 //> Methods and Initializers call-init
         ObjClosure* initializer;
-        if (findTopMethod(klass, OBJ_VAL(vm.initString), &initializer)) {
-          return call(AS_CLOSURE(initializer), argCount);
+        if (findTopMethod(klass, vm.initString, &initializer)) {
+          return call(initializer, argCount);
 //> no-init-arity-error
         } else if (argCount != 0) {
           runtimeError("Expected 0 arguments but got %d.",
@@ -391,7 +391,7 @@ static bool callValue(Value callee, int argCount) {
 //> Methods and Initializers invoke-from-class
 static bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
   ObjClosure* method;
-  if (!findTopMethod(klass, OBJ_VAL(name), &method)) {
+  if (!findTopMethod(klass, name, &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
@@ -426,7 +426,7 @@ static bool invoke(ObjString* name, int argCount) {
 //> Methods and Initializers bind-method
 static bool bindMethod(ObjClass* klass, ObjString* name) {
   ObjClosure* method;
-  if (!findTopMethod(klass, OBJ_VAL(name), &method)) {
+  if (!findTopMethod(klass, name, &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
