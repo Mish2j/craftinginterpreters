@@ -897,6 +897,19 @@ static void super_(bool canAssign) {
 //< super-invoke
 }
 //< Superclasses super
+static void inner_(bool canAssign) {
+  if (currentClass == NULL) {
+    error("Can't use 'inner' outside of a class.");
+  }
+
+  namedVariable(syntheticToken("this"), false);
+
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'inner'.");
+  uint8_t argCount = argumentList();
+  consume(TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+
+  emitBytes(OP_INNER, argCount);
+}
 //> Methods and Initializers this
 static void this_(bool canAssign) {
 //> this-outside-class
@@ -1034,8 +1047,9 @@ ParseRule rules[] = {
   [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
 */
 //> Superclasses table-super
-  [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
+  // [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
 //< Superclasses table-super
+[TOKEN_INNER] = {inner_, NULL, PREC_NONE},
 /* Compiling Expressions rules < Methods and Initializers table-this
   [TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
 */

@@ -51,6 +51,7 @@ ObjBoundMethod* newBoundMethod(Value receiver,
 ObjClass* newClass(ObjString* name) {
   ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
   klass->name = name; // [klass]
+  klass->superclass = NULL;
 //> Methods and Initializers init-methods
   initTable(&klass->methods);
 //< Methods and Initializers init-methods
@@ -73,6 +74,8 @@ ObjClosure* newClosure(ObjFunction* function) {
   closure->upvalues = upvalues;
   closure->upvalueCount = function->upvalueCount;
 //< init-upvalue-fields
+  closure->owner = NULL;
+  closure->methodName = NULL;
   return closure;
 }
 //< Closures new-closure

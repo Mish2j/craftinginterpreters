@@ -246,6 +246,42 @@ static Value peek(int distance) {
 /* Calls and Functions call < Closures call-signature
 static bool call(ObjFunction* function, int argCount) {
 */
+
+static bool findTopMethod(ObjClass* klass, ObjString* name,
+                          ObjClosure** method) {
+  ObjClosure* found = NULL;
+
+  for (ObjClass* current = klass; current != NULL;
+       current = current->superclass) {
+    Value value;
+    if (tableGet(&current->methods, name, &value)) {
+      found = AS_CLOSURE(value);
+    }
+  }
+
+  if (found == NULL) return false;
+  *method = found;
+  return true;
+}
+
+static bool findInnerMethod(ObjClass* owner, ObjClass* receiverClass,
+                            ObjString* name, ObjClosure** method) {
+  ObjClosure* found = NULL;
+
+  for (ObjClass* current = receiverClass;
+       current != NULL && current != owner;
+       current = current->superclass) {
+    Value value;
+    if (tableGet(&current->methods, name, &value)) {
+      found = AS_CLOSURE(value);
+    }
+  }
+
+  if (found == NULL) return false;
+  *method = found;
+  return true;
+}
+
 //> Calls and Functions call
 //> Closures call-signature
 static bool call(ObjClosure* closure, int argCount) {
@@ -303,9 +339,8 @@ static bool callValue(Value callee, int argCount) {
         ObjClass* klass = AS_CLASS(callee);
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
 //> Methods and Initializers call-init
-        Value initializer;
-        if (tableGet(&klass->methods, OBJ_VAL(vm.initString),
-                     &initializer)) {
+        ObjClosure* initializer;
+        if (findTopMethod(klass, OBJ_VAL(vm.initString), &initializer)) {
           return call(AS_CLOSURE(initializer), argCount);
 //> no-init-arity-error
         } else if (argCount != 0) {
@@ -354,14 +389,14 @@ static bool callValue(Value callee, int argCount) {
 }
 //< Calls and Functions call-value
 //> Methods and Initializers invoke-from-class
-static bool invokeFromClass(ObjClass* klass, ObjString* name,
-                            int argCount) {
-  Value method;
-  if (!tableGet(&klass->methods, OBJ_VAL(name), &method)) {
+static bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
+  ObjClosure* method;
+  if (!findTopMethod(klass, OBJ_VAL(name), &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
-  return call(AS_CLOSURE(method), argCount);
+
+  return call(method, argCount);
 }
 //< Methods and Initializers invoke-from-class
 //> Methods and Initializers invoke
@@ -390,14 +425,13 @@ static bool invoke(ObjString* name, int argCount) {
 //< Methods and Initializers invoke
 //> Methods and Initializers bind-method
 static bool bindMethod(ObjClass* klass, ObjString* name) {
-  Value method;
-  if (!tableGet(&klass->methods, OBJ_VAL(name), &method)) {
+  ObjClosure* method;
+  if (!findTopMethod(klass, OBJ_VAL(name), &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
 
-  ObjBoundMethod* bound = newBoundMethod(peek(0),
-                                         AS_CLOSURE(method));
+  ObjBoundMethod* bound = newBoundMethod(peek(0), method);
   pop();
   push(OBJ_VAL(bound));
   return true;
@@ -447,6 +481,11 @@ static void closeUpvalues(Value* last) {
 static void defineMethod(ObjString* name) {
   Value method = peek(0);
   ObjClass* klass = AS_CLASS(peek(1));
+
+  ObjClosure* closure = AS_CLOSURE(method);
+  closure->owner = klass;
+  closure->methodName = name;
+
   tableSet(&klass->methods, OBJ_VAL(name), method);
   pop();
 }
@@ -943,12 +982,47 @@ disassembleInstruction(&frame->closure->function->chunk,
 
 //< inherit-non-class
         ObjClass* subclass = AS_CLASS(peek(0));
-        tableAddAll(&AS_CLASS(superclass)->methods,
-                    &subclass->methods);
+        subclass->superclass = AS_CLASS(superclass);
         pop(); // Subclass.
         break;
       }
 //< Superclasses interpret-inherit
+      case OP_INNER: {
+        int argCount = READ_BYTE();
+
+        CallFrame* frame = &vm.frames[vm.frameCount - 1];
+        ObjClosure* currentMethod = frame->closure;
+
+        if (currentMethod->owner == NULL ||
+            currentMethod->methodName == NULL) {
+          runtimeError("Can't use 'inner' outside of a method.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        Value receiver = vm.stackTop[-argCount - 1];
+        if (!IS_INSTANCE(receiver)) {
+          runtimeError("Receiver must be an instance.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(receiver);
+        ObjClosure* method;
+
+        if (!findInnerMethod(currentMethod->owner,
+                            instance->klass,
+                            currentMethod->methodName,
+                            &method)) {
+          vm.stackTop -= argCount + 1;
+          push(NIL_VAL);
+          break;
+        }
+
+        if (!call(method, argCount)) {
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        break;
+      }
 //> Methods and Initializers interpret-method
       case OP_METHOD:
         defineMethod(READ_STRING());
@@ -1041,7 +1115,6 @@ InterpretResult interpret(const char* source) {
 //< Compiling Expressions interpret-chunk
 }
 //< interpret
-
 
 static bool callFunction(ObjFunction* function, int argCount) {
   if (argCount != function->arity) {
