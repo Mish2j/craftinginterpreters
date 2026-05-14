@@ -4,6 +4,7 @@ package com.craftinginterpreters.lox;
 
 //> Functions import-array-list
 import java.util.ArrayList;
+import java.util.Collections;
 //< Functions import-array-list
 //> Resolving and Binding import-hash-map
 import java.util.HashMap;
@@ -30,6 +31,7 @@ class Interpreter implements Expr.Visitor<Object>,
 //< Functions global-environment
 //> Resolving and Binding locals-field
   private final Map<Expr, Integer> locals = new HashMap<>();
+  private static Object uninitialized = new Object();
 //< Resolving and Binding locals-field
 //> Statements and State environment-field
 
@@ -73,6 +75,16 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 //< Statements and State interpret
+
+  private static class BreakJump extends RuntimeException {
+  BreakJump() { super(null, null, false, false); } // no stack trace noise
+}
+
+  @Override
+  public Void visitBreakStmt(Stmt.Break stmt) {
+    throw new BreakJump();
+  }
+
 //> evaluate
   private Object evaluate(Expr expr) {
     return expr.accept(this);
@@ -115,12 +127,14 @@ class Interpreter implements Expr.Visitor<Object>,
   public Void visitClassStmt(Stmt.Class stmt) {
 //> Inheritance interpret-superclass
     Object superclass = null;
+    LoxClass superklass = null;
     if (stmt.superclass != null) {
       superclass = evaluate(stmt.superclass);
       if (!(superclass instanceof LoxClass)) {
         throw new RuntimeError(stmt.superclass.name,
             "Superclass must be a class.");
       }
+      superklass = (LoxClass) superclass;
     }
 
 //< Inheritance interpret-superclass
@@ -146,12 +160,26 @@ class Interpreter implements Expr.Visitor<Object>,
       methods.put(method.name.lexeme, function);
     }
 
+
+    Map<String, LoxFunction> classMethods = new HashMap<>();
+    for (Stmt.Function method : stmt.classMethods) {
+      LoxFunction function = new LoxFunction(method, environment, false);
+      classMethods.put(method.name.lexeme, function);
+    }
+
+    LoxClass metaSuperclass = (superklass == null) ? null : superklass.metaclass;
+    LoxClass metaclass = new LoxClass(
+        stmt.name.lexeme + " metaclass",
+        metaSuperclass,
+        classMethods,
+        null
+    );
+
 /* Classes interpret-methods < Inheritance interpreter-construct-class
     LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
 */
 //> Inheritance interpreter-construct-class
-    LoxClass klass = new LoxClass(stmt.name.lexeme,
-        (LoxClass)superclass, methods);
+    LoxClass klass = new LoxClass(stmt.name.lexeme, superklass, methods, metaclass);
 //> end-superclass-environment
 
     if (superclass != null) {
@@ -223,7 +251,7 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Statements and State visit-var
   @Override
   public Void visitVarStmt(Stmt.Var stmt) {
-    Object value = null;
+    Object value = uninitialized;
     if (stmt.initializer != null) {
       value = evaluate(stmt.initializer);
     }
@@ -235,8 +263,12 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Control Flow visit-while
   @Override
   public Void visitWhileStmt(Stmt.While stmt) {
-    while (isTruthy(evaluate(stmt.condition))) {
-      execute(stmt.body);
+    try {
+      while (isTruthy(evaluate(stmt.condition))) {
+        execute(stmt.body);
+      }
+    } catch (BreakJump jump) {
+      // exit loop
     }
     return null;
   }
@@ -301,12 +333,12 @@ class Interpreter implements Expr.Visitor<Object>,
         return (double)left - (double)right;
 //> binary-plus
       case PLUS:
+        if (left instanceof String || right instanceof String) {
+          return stringify(left) + stringify(right);
+        }
+
         if (left instanceof Double && right instanceof Double) {
           return (double)left + (double)right;
-        } // [plus]
-
-        if (left instanceof String && right instanceof String) {
-          return (String)left + (String)right;
         }
 
 /* Evaluating Expressions binary-plus < Evaluating Expressions string-wrong-type
@@ -320,6 +352,10 @@ class Interpreter implements Expr.Visitor<Object>,
       case SLASH:
 //> check-slash-operand
         checkNumberOperands(expr.operator, left, right);
+        double divisor = (double) right;
+        if (divisor == 0.0) { // catches 0.0 and -0.0
+         throw new RuntimeError(expr.operator, "Division by zero.");
+      }
 //< check-slash-operand
         return (double)left / (double)right;
       case STAR:
@@ -327,6 +363,9 @@ class Interpreter implements Expr.Visitor<Object>,
         checkNumberOperands(expr.operator, left, right);
 //< check-star-operand
         return (double)left * (double)right;
+      case COMMA:
+        evaluate(expr.left);
+        return evaluate(expr.right);
     }
 
     // Unreachable.
@@ -366,12 +405,21 @@ class Interpreter implements Expr.Visitor<Object>,
   @Override
   public Object visitGetExpr(Expr.Get expr) {
     Object object = evaluate(expr.object);
+
     if (object instanceof LoxInstance) {
-      return ((LoxInstance) object).get(expr.name);
+      Object value = ((LoxInstance) object).get(expr.name);
+
+      if (value instanceof LoxFunction) {
+        LoxFunction function = (LoxFunction) value;
+        if (function.isGetter) {
+          return function.call(this, Collections.emptyList());
+        }
+      }
+
+      return value;
     }
 
-    throw new RuntimeError(expr.name,
-        "Only instances have properties.");
+    throw new RuntimeError(expr.name, "Only instances have properties.");
   }
 //< Classes interpreter-visit-get
 //> visit-grouping
@@ -471,12 +519,12 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Statements and State visit-variable
   @Override
   public Object visitVariableExpr(Expr.Variable expr) {
-/* Statements and State visit-variable < Resolving and Binding call-look-up-variable
-    return environment.get(expr.name);
-*/
-//> Resolving and Binding call-look-up-variable
-    return lookUpVariable(expr.name, expr);
-//< Resolving and Binding call-look-up-variable
+    Object value = environment.get(expr.name);
+    if (value == uninitialized) {
+      throw new RuntimeError(expr.name,
+          "Variable '" + expr.name.lexeme + "' is not initialized.");
+    }
+    return value;
   }
 //> Resolving and Binding look-up-variable
   private Object lookUpVariable(Token name, Expr expr) {
@@ -488,6 +536,18 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 //< Resolving and Binding look-up-variable
+
+  @Override
+  public Object visitConditionalExpr(Expr.Conditional expr) {
+    Object condition = evaluate(expr.condition);
+
+    if (isTruthy(condition)) {
+      return evaluate(expr.thenBranch);
+    } else {
+      return evaluate(expr.elseBranch);
+    }
+  }
+
 //< Statements and State visit-variable
 //> check-operand
   private void checkNumberOperand(Token operator, Object operand) {

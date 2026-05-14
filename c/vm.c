@@ -24,13 +24,89 @@
 #include "memory.h"
 //< Strings vm-include-object-memory
 #include "vm.h"
+#include <math.h>
+
+static void runtimeError(const char* format, ...);
+static bool callFunction(ObjFunction* function, int argCount);
+static bool callClosure(ObjClosure* closure, int argCount);
 
 VM vm; // [one]
 //> Calls and Functions clock-native
-static Value clockNative(int argCount, Value* args) {
-  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+static bool clockNative(int argCount, Value* args, Value* result) {
+  *result = NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+  return true;
 }
 //< Calls and Functions clock-native
+static bool sqrtNative(int argCount, Value* args, Value* result) {
+  if (argCount != 1) {
+    runtimeError("sqrt() expects 1 argument.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0])) {
+    runtimeError("sqrt() expects a number.");
+    return false;
+  }
+
+  double x = AS_NUMBER(args[0]);
+  if (x < 0) {
+    runtimeError("sqrt() cannot take a negative number.");
+    return false;
+  }
+
+  *result = NUMBER_VAL(sqrt(x));
+  return true;
+}
+
+static bool powNative(int argCount, Value* args, Value* result) {
+  if (argCount != 2) {
+    runtimeError("pow() expects 2 arguments.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("pow() expects numbers.");
+    return false;
+  }
+
+  *result = NUMBER_VAL(pow(AS_NUMBER(args[0]), AS_NUMBER(args[1])));
+  return true;
+}
+
+static bool minNative(int argCount, Value* args, Value* result) {
+  if (argCount != 2) {
+    runtimeError("min() expects 2 arguments.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("min() expects numbers.");
+    return false;
+  }
+
+  double a = AS_NUMBER(args[0]);
+  double b = AS_NUMBER(args[1]);
+  *result = NUMBER_VAL(a < b ? a : b);
+  return true;
+}
+
+static bool maxNative(int argCount, Value* args, Value* result) {
+  if (argCount != 2) {
+    runtimeError("max() expects 2 arguments.");
+    return false;
+  }
+
+  if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("max() expects numbers.");
+    return false;
+  }
+
+  double a = AS_NUMBER(args[0]);
+  double b = AS_NUMBER(args[1]);
+  *result = NUMBER_VAL(a > b ? a : b);
+  return true;
+}
+
 //> reset-stack
 static void resetStack() {
   vm.stackTop = vm.stack;
@@ -64,16 +140,16 @@ static void runtimeError(const char* format, ...) {
 */
 //> Calls and Functions runtime-error-stack
   for (int i = vm.frameCount - 1; i >= 0; i--) {
-    CallFrame* frame = &vm.frames[i];
+    CallFrame* frame = &vm.frames[vm.frameCount - 1];
 /* Calls and Functions runtime-error-stack < Closures runtime-error-function
     ObjFunction* function = frame->function;
 */
 //> Closures runtime-error-function
     ObjFunction* function = frame->closure->function;
 //< Closures runtime-error-function
-    size_t instruction = frame->ip - function->chunk.code - 1;
-    fprintf(stderr, "[line %d] in ", // [minus]
-            function->chunk.lines[instruction]);
+    int instruction = (int)(frame->ip - frame->closure->function->chunk.code - 1);
+    fprintf(stderr, "[line %d] in script\n",
+        getLine(&frame->closure->function->chunk, instruction));
     if (function->name == NULL) {
       fprintf(stderr, "script\n");
     } else {
@@ -86,12 +162,12 @@ static void runtimeError(const char* format, ...) {
 }
 //< Types of Values runtime-error
 //> Calls and Functions define-native
-static void defineNative(const char* name, NativeFn function) {
-  push(OBJ_VAL(copyString(name, (int)strlen(name))));
-  push(OBJ_VAL(newNative(function)));
-  tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
-  pop();
-  pop();
+static void defineNative(const char* name, NativeFn function, int arity) {
+    push(OBJ_VAL(copyString(name, (int)strlen(name))));
+    push(OBJ_VAL(newNative(function, arity)));
+    tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+    pop();
+    pop();
 }
 //< Calls and Functions define-native
 
@@ -128,7 +204,11 @@ void initVM() {
 //< Methods and Initializers init-init-string
 //> Calls and Functions define-native-clock
 
-  defineNative("clock", clockNative);
+  defineNative("clock", clockNative, 0);
+  defineNative("sqrt", sqrtNative, 1);
+  defineNative("pow", powNative, 2);
+  defineNative("min", minNative, 2);
+  defineNative("max", maxNative, 2);
 //< Calls and Functions define-native-clock
 }
 
@@ -259,9 +339,9 @@ static bool callValue(Value callee, int argCount) {
         ObjClass* klass = AS_CLASS(callee);
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
 //> Methods and Initializers call-init
-       ObjClosure* initializer;
-        if (findTopMethod(klass, vm.initString, &initializer)) {
-          return call(initializer, argCount);
+        ObjClosure* initializer;
+        if (findTopMethod(klass, OBJ_VAL(vm.initString), &initializer)) {
+          return call(AS_CLOSURE(initializer), argCount);
 //> no-init-arity-error
         } else if (argCount != 0) {
           runtimeError("Expected 0 arguments but got %d.",
@@ -275,16 +355,26 @@ static bool callValue(Value callee, int argCount) {
 //< Classes and Instances call-class
 //> Closures call-value-closure
       case OBJ_CLOSURE:
-        return call(AS_CLOSURE(callee), argCount);
+        return callClosure(AS_CLOSURE(callee), argCount);
 //< Closures call-value-closure
-/* Calls and Functions call-value < Closures call-value-closure
+// < Closures call-value-closure
       case OBJ_FUNCTION: // [switch]
-        return call(AS_FUNCTION(callee), argCount);
-*/
+        return callFunction(AS_FUNCTION(callee), argCount);
+
 //> call-native
       case OBJ_NATIVE: {
-        NativeFn native = AS_NATIVE(callee);
-        Value result = native(argCount, vm.stackTop - argCount);
+        ObjNative* native = AS_NATIVE(callee);
+        if (argCount != native->arity) {
+          runtimeError("Expected %d arguments but got %d.",
+              native->arity, argCount);
+          return false;
+        }
+
+        Value result;
+        if (!native->function(argCount, vm.stackTop - argCount, &result)) {
+          return false;
+        }
+
         vm.stackTop -= argCount + 1;
         push(result);
         return true;
@@ -301,7 +391,7 @@ static bool callValue(Value callee, int argCount) {
 //> Methods and Initializers invoke-from-class
 static bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
   ObjClosure* method;
-  if (!findTopMethod(klass, name, &method)) {
+  if (!findTopMethod(klass, OBJ_VAL(name), &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
@@ -324,7 +414,7 @@ static bool invoke(ObjString* name, int argCount) {
 //> invoke-field
 
   Value value;
-  if (tableGet(&instance->fields, name, &value)) {
+  if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
     vm.stackTop[-argCount - 1] = value;
     return callValue(value, argCount);
   }
@@ -336,7 +426,7 @@ static bool invoke(ObjString* name, int argCount) {
 //> Methods and Initializers bind-method
 static bool bindMethod(ObjClass* klass, ObjString* name) {
   ObjClosure* method;
-  if (!findTopMethod(klass, name, &method)) {
+  if (!findTopMethod(klass, OBJ_VAL(name), &method)) {
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
@@ -396,7 +486,7 @@ static void defineMethod(ObjString* name) {
   closure->owner = klass;
   closure->methodName = name;
 
-  tableSet(&klass->methods, name, method);
+  tableSet(&klass->methods, OBJ_VAL(name), method);
   pop();
 }
 //< Methods and Initializers define-method
@@ -433,12 +523,13 @@ static void concatenate() {
 //> run
 static InterpretResult run() {
 //> Calls and Functions run
-  CallFrame* frame = &vm.frames[vm.frameCount - 1];
+  register CallFrame* frame = &vm.frames[vm.frameCount - 1];
+  register uint8_t* ip = frame->ip;
 
 /* A Virtual Machine run < Calls and Functions run
 #define READ_BYTE() (*vm.ip++)
 */
-#define READ_BYTE() (*frame->ip++)
+#define READ_BYTE() (*ip++)
 /* A Virtual Machine read-constant < Calls and Functions run
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 */
@@ -447,9 +538,8 @@ static InterpretResult run() {
 #define READ_SHORT() \
     (vm.ip += 2, (uint16_t)((vm.ip[-2] << 8) | vm.ip[-1]))
 */
-#define READ_SHORT() \
-    (frame->ip += 2, \
-    (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+  #define READ_SHORT() \
+    (ip += 2, (uint16_t)((ip[-2] << 8) | ip[-1]))
 
 /* Calls and Functions run < Closures read-constant
 #define READ_CONSTANT() \
@@ -457,13 +547,14 @@ static InterpretResult run() {
 */
 //> Closures read-constant
 #define READ_CONSTANT() \
-    (frame->closure->function->chunk.constants.values[READ_BYTE()])
+    (frame->function->chunk.constants.values[READ_BYTE()])
 //< Closures read-constant
 
 //< Calls and Functions run
 //> Global Variables read-string
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 //< Global Variables read-string
+
 /* A Virtual Machine binary-op < Types of Values binary-op
 #define BINARY_OP(op) \
     do { \
@@ -506,8 +597,8 @@ static InterpretResult run() {
         (int)(frame->ip - frame->function->chunk.code));
 */
 //> Closures disassemble-instruction
-    disassembleInstruction(&frame->closure->function->chunk,
-        (int)(frame->ip - frame->closure->function->chunk.code));
+disassembleInstruction(&frame->closure->function->chunk,
+    (int)(ip - frame->closure->function->chunk.code));
 //< Closures disassemble-instruction
 #endif
 
@@ -546,6 +637,16 @@ static InterpretResult run() {
 //< Calls and Functions push-local
         break;
       }
+      case OP_GET_LOCAL_LONG: {
+        uint16_t slot = READ_SHORT();
+        push(frame->slots[slot]);
+        break;
+      }
+      case OP_SET_LOCAL_LONG: {
+        uint16_t slot = READ_SHORT();
+        frame->slots[slot] = peek(0);
+        break;
+      }
 //< Local Variables interpret-get-local
 //> Local Variables interpret-set-local
       case OP_SET_LOCAL: {
@@ -563,7 +664,7 @@ static InterpretResult run() {
       case OP_GET_GLOBAL: {
         ObjString* name = READ_STRING();
         Value value;
-        if (!tableGet(&vm.globals, name, &value)) {
+        if (!tableGet(&vm.globals, OBJ_VAL(name), &value)) {
           runtimeError("Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -574,7 +675,7 @@ static InterpretResult run() {
 //> Global Variables interpret-define-global
       case OP_DEFINE_GLOBAL: {
         ObjString* name = READ_STRING();
-        tableSet(&vm.globals, name, peek(0));
+        tableSet(&vm.globals, OBJ_VAL(name), peek(0));
         pop();
         break;
       }
@@ -582,8 +683,8 @@ static InterpretResult run() {
 //> Global Variables interpret-set-global
       case OP_SET_GLOBAL: {
         ObjString* name = READ_STRING();
-        if (tableSet(&vm.globals, name, peek(0))) {
-          tableDelete(&vm.globals, name); // [delete]
+        if (tableSet(&vm.globals, OBJ_VAL(name), peek(0))) {
+          tableDelete(&vm.globals, OBJ_VAL(name)); // [delete]
           runtimeError("Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -608,6 +709,7 @@ static InterpretResult run() {
       case OP_GET_PROPERTY: {
 //> get-not-instance
         if (!IS_INSTANCE(peek(0))) {
+          frame->ip = ip;
           runtimeError("Only instances have properties.");
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -617,7 +719,7 @@ static InterpretResult run() {
         ObjString* name = READ_STRING();
         
         Value value;
-        if (tableGet(&instance->fields, name, &value)) {
+        if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
           pop(); // Instance.
           push(value);
           break;
@@ -647,7 +749,7 @@ static InterpretResult run() {
 
 //< set-not-instance
         ObjInstance* instance = AS_INSTANCE(peek(1));
-        tableSet(&instance->fields, READ_STRING(), peek(0));
+        tableSet(&instance->fields, OBJ_VAL(READ_STRING()), peek(0));
         Value value = pop();
         pop();
         push(value);
@@ -770,11 +872,13 @@ static InterpretResult run() {
 //> Calls and Functions interpret-call
       case OP_CALL: {
         int argCount = READ_BYTE();
+        frame->ip = ip;
         if (!callValue(peek(argCount), argCount)) {
           return INTERPRET_RUNTIME_ERROR;
         }
 //> update-frame-after-call
         frame = &vm.frames[vm.frameCount - 1];
+        ip = frame->ip;
 //< update-frame-after-call
         break;
       }
@@ -783,10 +887,12 @@ static InterpretResult run() {
       case OP_INVOKE: {
         ObjString* method = READ_STRING();
         int argCount = READ_BYTE();
+        frame->ip = ip;
         if (!invoke(method, argCount)) {
           return INTERPRET_RUNTIME_ERROR;
         }
         frame = &vm.frames[vm.frameCount - 1];
+        ip = frame->ip;
         break;
       }
 //< Methods and Initializers interpret-invoke
@@ -795,10 +901,13 @@ static InterpretResult run() {
         ObjString* method = READ_STRING();
         int argCount = READ_BYTE();
         ObjClass* superclass = AS_CLASS(pop());
+
+        frame->ip = ip;
         if (!invokeFromClass(superclass, method, argCount)) {
           return INTERPRET_RUNTIME_ERROR;
         }
         frame = &vm.frames[vm.frameCount - 1];
+        ip = frame->ip;
         break;
       }
 //< Superclasses interpret-super-invoke
@@ -853,6 +962,7 @@ static InterpretResult run() {
         vm.stackTop = frame->slots;
         push(result);
         frame = &vm.frames[vm.frameCount - 1];
+        ip = frame->ip;
         break;
 //< Calls and Functions interpret-return
       }
@@ -1005,3 +1115,43 @@ InterpretResult interpret(const char* source) {
 //< Compiling Expressions interpret-chunk
 }
 //< interpret
+
+static bool callFunction(ObjFunction* function, int argCount) {
+  if (argCount != function->arity) {
+    runtimeError("Expected %d arguments but got %d.",
+        function->arity, argCount);
+    return false;
+  }
+
+  if (vm.frameCount == FRAMES_MAX) {
+    runtimeError("Stack overflow.");
+    return false;
+  }
+
+  CallFrame* frame = &vm.frames[vm.frameCount++];
+  frame->function = function;
+  frame->closure = NULL;
+  frame->ip = function->chunk.code;
+  frame->slots = vm.stackTop - argCount - 1;
+  return true;
+}
+
+static bool callClosure(ObjClosure* closure, int argCount) {
+  if (argCount != closure->function->arity) {
+    runtimeError("Expected %d arguments but got %d.",
+        closure->function->arity, argCount);
+    return false;
+  }
+
+  if (vm.frameCount == FRAMES_MAX) {
+    runtimeError("Stack overflow.");
+    return false;
+  }
+
+  CallFrame* frame = &vm.frames[vm.frameCount++];
+  frame->function = closure->function;
+  frame->closure = closure;
+  frame->ip = closure->function->chunk.code;
+  frame->slots = vm.stackTop - argCount - 1;
+  return true;
+}

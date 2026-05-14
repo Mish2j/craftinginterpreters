@@ -10,6 +10,8 @@
 //< Strings memory-include-vm
 //> Garbage Collection debug-log-includes
 
+#include "table.h"
+
 #ifdef DEBUG_LOG_GC
 #include <stdio.h>
 #include "debug.h"
@@ -220,8 +222,12 @@ static void freeObject(Obj* object) {
 //< Calls and Functions free-native
     case OBJ_STRING: {
       ObjString* string = (ObjString*)object;
-      FREE_ARRAY(char, string->chars, string->length + 1);
-      FREE(ObjString, object);
+      if (string->isOwned) {
+        reallocate(object,
+            sizeof(ObjString) + sizeof(char) * (string->length + 1), 0);
+      } else {
+        FREE(ObjString, object);
+      }
       break;
     }
 //> Closures free-upvalue

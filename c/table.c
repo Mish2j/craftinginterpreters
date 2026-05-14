@@ -10,6 +10,42 @@
 //> max-load
 #define TABLE_MAX_LOAD 0.75
 
+static uint32_t hashBits(uint64_t bits) {
+  bits = (~bits) + (bits << 18);
+  bits = bits ^ (bits >> 31);
+  bits = bits * 21;
+  bits = bits ^ (bits >> 11);
+  bits = bits + (bits << 6);
+  bits = bits ^ (bits >> 22);
+  return (uint32_t)bits;
+}
+
+static uint32_t hashValue(Value value) {
+  if (IS_NIL(value)) return 1;
+  if (IS_BOOL(value)) return AS_BOOL(value) ? 2 : 3;
+
+  if (IS_NUMBER(value)) {
+    union {
+      double num;
+      uint64_t bits;
+    } data;
+
+    data.num = AS_NUMBER(value);
+
+    if (data.num == 0) data.bits = 0;
+
+    return hashBits(data.bits);
+  }
+
+  if (IS_OBJ(value)) {
+    if (IS_STRING(value)) return AS_STRING(value)->hash;
+
+    return hashBits((uint64_t)(uintptr_t)AS_OBJ(value));
+  }
+
+  return 0;
+}
+
 //< max-load
 void initTable(Table* table) {
   table->count = 0;
@@ -27,13 +63,12 @@ void freeTable(Table* table) {
 // NOTE: The "Optimization" chapter has a manual copy of this function.
 // If you change it here, make sure to update that copy.
 //< omit
-static Entry* findEntry(Entry* entries, int capacity,
-                        ObjString* key) {
+static Entry* findEntry(Entry* entries, int capacity, Value key) {
 /* Hash Tables find-entry < Optimization initial-index
   uint32_t index = key->hash % capacity;
 */
 //> Optimization initial-index
-  uint32_t index = key->hash & (capacity - 1);
+  uint32_t index = hashValue(key) & (capacity - 1);
 //< Optimization initial-index
 //> find-entry-tombstone
   Entry* tombstone = NULL;
@@ -47,18 +82,15 @@ static Entry* findEntry(Entry* entries, int capacity,
     }
 */
 //> find-tombstone
-    if (entry->key == NULL) {
-      if (IS_NIL(entry->value)) {
-        // Empty entry.
+      if (entry->state == ENTRY_EMPTY) {
         return tombstone != NULL ? tombstone : entry;
-      } else {
-        // We found a tombstone.
-        if (tombstone == NULL) tombstone = entry;
       }
-    } else if (entry->key == key) {
-      // We found the key.
-      return entry;
-    }
+
+      if (entry->state == ENTRY_TOMBSTONE) {
+        if (tombstone == NULL) tombstone = entry;
+      } else if (valuesEqual(entry->key, key)) {
+        return entry;
+      }
 //< find-tombstone
 
 /* Hash Tables find-entry < Optimization next-index
@@ -71,11 +103,11 @@ static Entry* findEntry(Entry* entries, int capacity,
 }
 //< find-entry
 //> table-get
-bool tableGet(Table* table, ObjString* key, Value* value) {
+bool tableGet(Table* table, Value key, Value* value) {
   if (table->count == 0) return false;
 
   Entry* entry = findEntry(table->entries, table->capacity, key);
-  if (entry->key == NULL) return false;
+  if (entry->state != ENTRY_OCCUPIED) return false;
 
   *value = entry->value;
   return true;
@@ -85,8 +117,9 @@ bool tableGet(Table* table, ObjString* key, Value* value) {
 static void adjustCapacity(Table* table, int capacity) {
   Entry* entries = ALLOCATE(Entry, capacity);
   for (int i = 0; i < capacity; i++) {
-    entries[i].key = NULL;
+    entries[i].key = NIL_VAL;
     entries[i].value = NIL_VAL;
+    entries[i].state = ENTRY_EMPTY;
   }
 //> re-hash
 
@@ -95,11 +128,12 @@ static void adjustCapacity(Table* table, int capacity) {
 //< resize-init-count
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    if (entry->key == NULL) continue;
+    if (entry->state != ENTRY_OCCUPIED) continue;
 
     Entry* dest = findEntry(entries, capacity, entry->key);
     dest->key = entry->key;
     dest->value = entry->value;
+    dest->state = ENTRY_OCCUPIED;
 //> resize-increment-count
     table->count++;
 //< resize-increment-count
@@ -114,7 +148,7 @@ static void adjustCapacity(Table* table, int capacity) {
 }
 //< table-adjust-capacity
 //> table-set
-bool tableSet(Table* table, ObjString* key, Value value) {
+bool tableSet(Table* table, Value key, Value value) {
 //> table-set-grow
   if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
     int capacity = GROW_CAPACITY(table->capacity);
@@ -123,30 +157,32 @@ bool tableSet(Table* table, ObjString* key, Value value) {
 
 //< table-set-grow
   Entry* entry = findEntry(table->entries, table->capacity, key);
-  bool isNewKey = entry->key == NULL;
+  bool isNewKey = entry->state != ENTRY_OCCUPIED;
 /* Hash Tables table-set < Hash Tables set-increment-count
   if (isNewKey) table->count++;
 */
 //> set-increment-count
-  if (isNewKey && IS_NIL(entry->value)) table->count++;
+  if (entry->state == ENTRY_EMPTY) table->count++;
 //< set-increment-count
 
   entry->key = key;
   entry->value = value;
+  entry->state = ENTRY_OCCUPIED;
   return isNewKey;
 }
 //< table-set
 //> table-delete
-bool tableDelete(Table* table, ObjString* key) {
+bool tableDelete(Table* table, Value key) {
   if (table->count == 0) return false;
 
   // Find the entry.
   Entry* entry = findEntry(table->entries, table->capacity, key);
-  if (entry->key == NULL) return false;
+  if (entry->state != ENTRY_OCCUPIED) return false;
 
   // Place a tombstone in the entry.
-  entry->key = NULL;
+  entry->key = NIL_VAL;
   entry->value = BOOL_VAL(true);
+  entry->state = ENTRY_TOMBSTONE;
   return true;
 }
 //< table-delete
@@ -154,7 +190,7 @@ bool tableDelete(Table* table, ObjString* key) {
 void tableAddAll(Table* from, Table* to) {
   for (int i = 0; i < from->capacity; i++) {
     Entry* entry = &from->entries[i];
-    if (entry->key != NULL) {
+    if (entry->state == ENTRY_OCCUPIED) {
       tableSet(to, entry->key, entry->value);
     }
   }
@@ -173,14 +209,17 @@ ObjString* tableFindString(Table* table, const char* chars,
 //< Optimization find-string-index
   for (;;) {
     Entry* entry = &table->entries[index];
-    if (entry->key == NULL) {
-      // Stop if we find an empty non-tombstone entry.
-      if (IS_NIL(entry->value)) return NULL;
-    } else if (entry->key->length == length &&
-        entry->key->hash == hash &&
-        memcmp(entry->key->chars, chars, length) == 0) {
-      // We found it.
-      return entry->key;
+
+    if (entry->state == ENTRY_EMPTY) {
+      return NULL;
+    }
+
+    if (entry->state == ENTRY_OCCUPIED &&
+        IS_STRING(entry->key) &&
+        AS_STRING(entry->key)->length == length &&
+        AS_STRING(entry->key)->hash == hash &&
+        memcmp(AS_STRING(entry->key)->chars, chars, length) == 0) {
+      return AS_STRING(entry->key);
     }
 
 /* Hash Tables table-find-string < Optimization find-string-next
@@ -196,7 +235,9 @@ ObjString* tableFindString(Table* table, const char* chars,
 void tableRemoveWhite(Table* table) {
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    if (entry->key != NULL && !entry->key->obj.isMarked) {
+    if (entry->state == ENTRY_OCCUPIED &&
+        IS_OBJ(entry->key) &&
+        !AS_OBJ(entry->key)->isMarked) {
       tableDelete(table, entry->key);
     }
   }
@@ -206,7 +247,9 @@ void tableRemoveWhite(Table* table) {
 void markTable(Table* table) {
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    markObject((Obj*)entry->key);
+    if (entry->state != ENTRY_OCCUPIED) continue;
+
+    markValue(entry->key);
     markValue(entry->value);
   }
 }

@@ -18,6 +18,8 @@ class LoxFunction implements LoxCallable {
 //> Classes is-initializer-field
   private final boolean isInitializer;
 
+  final boolean isGetter;
+
   LoxFunction(Stmt.Function declaration, Environment closure,
               boolean isInitializer) {
     this.isInitializer = isInitializer;
@@ -26,6 +28,7 @@ class LoxFunction implements LoxCallable {
     this.closure = closure;
 //< closure-constructor
     this.declaration = declaration;
+    this.isGetter = declaration.isGetter;
   }
 //> Classes bind-instance
   LoxFunction bind(LoxInstance instance) {
