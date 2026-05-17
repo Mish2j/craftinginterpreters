@@ -20,8 +20,17 @@ class LoxFunction implements LoxCallable {
 
   final boolean isGetter;
 
-  LoxFunction(Stmt.Function declaration, Environment closure,
-              boolean isInitializer) {
+  final String methodName;
+  final LoxClass definingClass;  
+  final LoxInstance receiver;
+
+  LoxFunction(Stmt.Function declaration,
+            Environment closure,
+            boolean isInitializer,
+            String methodName,
+            LoxClass definingClass,
+             LoxInstance receiver
+          ) {
     this.isInitializer = isInitializer;
 //< Classes is-initializer-field
 //> closure-constructor
@@ -29,6 +38,9 @@ class LoxFunction implements LoxCallable {
 //< closure-constructor
     this.declaration = declaration;
     this.isGetter = declaration.isGetter;
+    this.methodName = methodName;
+    this.definingClass = definingClass;
+    this.receiver = receiver;
   }
 //> Classes bind-instance
   LoxFunction bind(LoxInstance instance) {
@@ -38,8 +50,7 @@ class LoxFunction implements LoxCallable {
     return new LoxFunction(declaration, environment);
 */
 //> lox-function-bind-with-initializer
-    return new LoxFunction(declaration, environment,
-                           isInitializer);
+    return new LoxFunction(declaration, environment, isInitializer, methodName, definingClass, instance);
 //< lox-function-bind-with-initializer
   }
 //< Classes bind-instance
@@ -70,6 +81,11 @@ class LoxFunction implements LoxCallable {
           arguments.get(i));
     }
 
+    if (receiver != null) {
+      interpreter.pushDispatch(
+          new Interpreter.DispatchContext(receiver, receiver.klass, definingClass, methodName));
+    }
+
 /* Functions function-call < Functions catch-return
     interpreter.executeBlock(declaration.body, environment);
 */
@@ -82,6 +98,8 @@ class LoxFunction implements LoxCallable {
 
 //< Classes early-return-this
       return returnValue.value;
+    } finally {
+      if (receiver != null) interpreter.popDispatch();
     }
 //< catch-return
 //> Classes return-this

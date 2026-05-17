@@ -47,7 +47,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   }
 
   private ClassType currentClass = ClassType.NONE;
-
+  private final Stack<String> currentMethodNames = new Stack<>();
+  
 //< Classes class-type
   private static class Local {
     boolean defined;
@@ -161,6 +162,17 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
     return null;
   }
 //< Classes resolver-visit-class
+  @Override
+  public Void visitInnerExpr(Expr.Inner expr) {
+    if (currentMethodNames.isEmpty()) {
+      Lox.error(expr.keyword, "Can't use 'inner' outside of a method.");
+    }
+    if (currentClass == ClassType.NONE) {
+      Lox.error(expr.keyword, "Can't use 'inner' outside of a class.");
+    }
+    // No variable resolution needed; runtime handles dispatch.
+    return null;
+  }
 //> visit-expression-stmt
   @Override
   public Void visitExpressionStmt(Stmt.Expression stmt) {
@@ -306,21 +318,21 @@ public Void visitConditionalExpr(Expr.Conditional expr) {
   }
 //< Classes resolver-visit-set
 //> Inheritance resolve-super-expr
-  @Override
-  public Void visitSuperExpr(Expr.Super expr) {
-//> invalid-super
-    if (currentClass == ClassType.NONE) {
-      Lox.error(expr.keyword,
-          "Can't use 'super' outside of a class.");
-    } else if (currentClass != ClassType.SUBCLASS) {
-      Lox.error(expr.keyword,
-          "Can't use 'super' in a class with no superclass.");
-    }
+//   @Override
+//   public Void visitSuperExpr(Expr.Super expr) {
+// //> invalid-super
+//     if (currentClass == ClassType.NONE) {
+//       Lox.error(expr.keyword,
+//           "Can't use 'super' outside of a class.");
+//     } else if (currentClass != ClassType.SUBCLASS) {
+//       Lox.error(expr.keyword,
+//           "Can't use 'super' in a class with no superclass.");
+//     }
 
-//< invalid-super
-    resolveLocal(expr, expr.keyword);
-    return null;
-  }
+// //< invalid-super
+//     resolveLocal(expr, expr.keyword);
+//     return null;
+//   }
 //< Inheritance resolve-super-expr
 //> Classes resolver-visit-this
   @Override

@@ -82,9 +82,9 @@ class RpnPrinter implements Expr.Visitor<String> {
         return "this";
     }
 
-    @Override
-    public String visitSuperExpr(Expr.Super expr) {
-        // super method .
-        return "super " + expr.method.lexeme + " .";
-    }
+    // @Override
+    // public String visitSuperExpr(Expr.Super expr) {
+    //     // super method .
+    //     return "super " + expr.method.lexeme + " .";
+    // }
 }

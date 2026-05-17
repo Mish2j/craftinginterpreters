@@ -1,6 +1,7 @@
 //> Classes lox-class
 package com.craftinginterpreters.lox;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -41,8 +42,39 @@ class LoxClass extends LoxInstance implements LoxCallable {
     this.metaclass = metaclass;
   }
 //< lox-class-methods
+  LoxFunction findMethodTopDown(String name) {
+    List<LoxClass> chain = chainFromRoot();
+    for (LoxClass klass : chain) {
+      LoxFunction method = klass.methods.get(name);
+      if (method != null) return method;
+    }
+    return null;
+  }
+
+  // For inner(): find next matching method below definingClass, down toward runtimeClass(this).
+  LoxFunction findInnerTarget(String methodName, LoxClass definingClass, LoxClass runtimeClass) {
+    List<LoxClass> chain = runtimeClass.chainFromRoot();
+
+    int start = -1;
+    for (int i = 0; i < chain.size(); i++) {
+      if (chain.get(i) == definingClass) {
+        start = i;
+        break;
+      }
+    }
+    if (start == -1) return null; // should not happen if definingClass is on chain
+
+    for (int i = start + 1; i < chain.size(); i++) {
+      LoxClass klass = chain.get(i);
+      LoxFunction method = klass.methods.get(methodName);
+      if (method != null) return method;
+    }
+    return null;
+  }
 //> lox-class-find-method
   LoxFunction findMethod(String name) {
+    List<LoxClass> chain = inheritanceChain();
+    
     if (methods.containsKey(name)) {
       return methods.get(name);
     }
@@ -88,4 +120,23 @@ class LoxClass extends LoxInstance implements LoxCallable {
 //< lox-initializer-arity
   }
 //< lox-class-call-arity
+
+  List<LoxClass> inheritanceChain() {
+    List<LoxClass> chain = new ArrayList<>();
+    LoxClass current = this;
+    while (current != null) {
+      chain.add(0, current); // prepend
+      current = current.superclass;
+    }
+    return chain;
+  }
+   List<LoxClass> chainFromRoot() {
+    List<LoxClass> chain = new ArrayList<>();
+    LoxClass current = this;
+    while (current != null) {
+      chain.add(0, current);
+      current = current.superclass;
+    }
+    return chain;
+  }
 }

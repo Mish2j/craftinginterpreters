@@ -14,6 +14,7 @@ import java.util.List;
 //> Resolving and Binding import-map
 import java.util.Map;
 //< Resolving and Binding import-map
+import java.util.Stack;
 
 /* Evaluating Expressions interpreter-class < Statements and State interpreter
 class Interpreter implements Expr.Visitor<Object> {
@@ -75,10 +76,52 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 //< Statements and State interpret
+  private final Stack<DispatchContext> dispatchStack = new Stack<>();
+  private static class DispatchContext {
+    final LoxInstance receiver;
+    final LoxClass runtimeClass;
+    final LoxClass definingClass;
+    final String methodName;
+
+    DispatchContext(LoxInstance receiver, LoxClass runtimeClass, LoxClass definingClass, String methodName) {
+      this.receiver = receiver;
+      this.runtimeClass = runtimeClass;
+      this.definingClass = definingClass;
+      this.methodName = methodName;
+    }
+  }
+
+  void pushDispatch(DispatchContext ctx) { 
+    dispatchStack.push(ctx);
+  }
+  void popDispatch() {
+    dispatchStack.pop(); 
+  }
 
   private static class BreakJump extends RuntimeException {
-  BreakJump() { super(null, null, false, false); } // no stack trace noise
-}
+    BreakJump() { super(null, null, false, false); } // no stack trace noise
+  } 
+
+  @Override
+  public Object visitInnerExpr(Expr.Inner expr) {
+    if (dispatchStack.isEmpty()) return null; 
+
+    DispatchContext ctx = dispatchStack.peek();
+
+    LoxFunction target =
+        ctx.runtimeClass.findInnerTarget(ctx.methodName, ctx.definingClass, ctx.runtimeClass);
+
+    if (target == null) return null;
+
+    LoxFunction bound = target.bind(ctx.receiver);
+
+    dispatchStack.push(new DispatchContext(ctx.receiver, ctx.runtimeClass, target.definingClass, target.methodName));
+    try {
+      return bound.call(this, Collections.emptyList());
+    } finally {
+      dispatchStack.pop();
+    }
+  }
 
   @Override
   public Void visitBreakStmt(Stmt.Break stmt) {
@@ -128,6 +171,7 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Inheritance interpret-superclass
     Object superclass = null;
     LoxClass superklass = null;
+
     if (stmt.superclass != null) {
       superclass = evaluate(stmt.superclass);
       if (!(superclass instanceof LoxClass)) {
@@ -149,13 +193,14 @@ class Interpreter implements Expr.Visitor<Object>,
 //> interpret-methods
 
     Map<String, LoxFunction> methods = new HashMap<>();
+    LoxClass klass = new LoxClass(stmt.name.lexeme, superklass, methods, metaclass);
     for (Stmt.Function method : stmt.methods) {
 /* Classes interpret-methods < Classes interpreter-method-initializer
       LoxFunction function = new LoxFunction(method, environment);
 */
 //> interpreter-method-initializer
       LoxFunction function = new LoxFunction(method, environment,
-          method.name.lexeme.equals("init"));
+          method.name.lexeme.equals("init"), method.name.lexeme, klass, null);
 //< interpreter-method-initializer
       methods.put(method.name.lexeme, function);
     }
@@ -464,30 +509,30 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< Classes interpreter-visit-set
 //> Inheritance interpreter-visit-super
-  @Override
-  public Object visitSuperExpr(Expr.Super expr) {
-    int distance = locals.get(expr);
-    LoxClass superclass = (LoxClass)environment.getAt(
-        distance, "super");
-//> super-find-this
+//   @Override
+//   public Object visitSuperExpr(Expr.Super expr) {
+//     int distance = locals.get(expr);
+//     LoxClass superclass = (LoxClass)environment.getAt(
+//         distance, "super");
+// //> super-find-this
 
-    LoxInstance object = (LoxInstance)environment.getAt(
-        distance - 1, "this");
-//< super-find-this
-//> super-find-method
+//     LoxInstance object = (LoxInstance)environment.getAt(
+//         distance - 1, "this");
+// //< super-find-this
+// //> super-find-method
 
-    LoxFunction method = superclass.findMethod(expr.method.lexeme);
-//> super-no-method
+//     LoxFunction method = superclass.findMethod(expr.method.lexeme);
+// //> super-no-method
 
-    if (method == null) {
-      throw new RuntimeError(expr.method,
-          "Undefined property '" + expr.method.lexeme + "'.");
-    }
+//     if (method == null) {
+//       throw new RuntimeError(expr.method,
+//           "Undefined property '" + expr.method.lexeme + "'.");
+//     }
 
-//< super-no-method
-    return method.bind(object);
-//< super-find-method
-  }
+// //< super-no-method
+//     return method.bind(object);
+// //< super-find-method
+//   }
 //< Inheritance interpreter-visit-super
 //> Classes interpreter-visit-this
   @Override

@@ -21,7 +21,7 @@ class LoxInstance {
     }
 
 //> lox-instance-get-method
-    LoxFunction method = klass.findMethod(name.lexeme);
+    LoxFunction method = klass.findMethodTopDown(name.lexeme);
 /* Classes lox-instance-get-method < Classes lox-instance-bind-method
     if (method != null) return method;
 */
